@@ -1,0 +1,383 @@
+{
+ "name": "short",
+ "description": "30 turns about one topic: planning an allotment garden.",
+ "turns": [
+  [
+   {
+    "role": "user",
+    "content": "The garden plot is number 17 at the Linden Lane allotments."
+   },
+   {
+    "role": "assistant",
+    "content": "Noted: plot 17 at Linden Lane."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "The courgettes look a bit pale. Is that a problem?"
+   },
+   {
+    "role": "assistant",
+    "content": "Pale courgettes often want more light or a little compost. Check the soil first."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "The raised bed I built is 240 cm long and 90 cm wide."
+   },
+   {
+    "role": "assistant",
+    "content": "A 240 by 90 cm bed gives you room for three short rows."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "How deep should the mulch be around the beans?"
+   },
+   {
+    "role": "assistant",
+    "content": "About five centimetres around the beans, kept a hand's width from the stems."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "My neighbour on the plot, Agnes Varro, lends me her wheelbarrow."
+   },
+   {
+    "role": "assistant",
+    "content": "Good to have Agnes Varro next door."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "Can the tomatoes grow next to the radishes?"
+   },
+   {
+    "role": "assistant",
+    "content": "Yes, the tomatoes and the radishes get along; give each its own row so they share the light."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "I sowed the first beans on 14 April."
+   },
+   {
+    "role": "assistant",
+    "content": "Beans sown on 14 April should flower by early June."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "Can the onions grow next to the carrots?"
+   },
+   {
+    "role": "assistant",
+    "content": "Yes, the onions and the carrots get along; give each its own row so they share the light."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "The tomato variety I chose is called Copper Lantern."
+   },
+   {
+    "role": "assistant",
+    "content": "Copper Lantern it is; it likes a sheltered spot."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "Should I water the tomatoes in the morning or the evening?"
+   },
+   {
+    "role": "assistant",
+    "content": "Morning is better for the tomatoes: the leaves dry before night, which keeps mould away."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "The water tap is at the north gate, about 35 metres from my bed."
+   },
+   {
+    "role": "assistant",
+    "content": "35 metres is a long walk with cans; a hose may pay off."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "Can the tomatoes grow next to the courgettes?"
+   },
+   {
+    "role": "assistant",
+    "content": "Yes, the tomatoes and the courgettes get along; give each its own row so they share the light."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "We decided to skip potatoes this year because of the blight last season."
+   },
+   {
+    "role": "assistant",
+    "content": "Skipping potatoes for a year is wise after blight."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "Should I water the radishes in the morning or the evening?"
+   },
+   {
+    "role": "assistant",
+    "content": "Morning is better for the radishes: the leaves dry before night, which keeps mould away."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "The plot rent is 46 euros per year, due every March."
+   },
+   {
+    "role": "assistant",
+    "content": "So 46 euros each March."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "How deep should the mulch be around the radishes?"
+   },
+   {
+    "role": "assistant",
+    "content": "About five centimetres around the radishes, kept a hand's width from the stems."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "I put the compost bin in the south-east corner."
+   },
+   {
+    "role": "assistant",
+    "content": "The south-east corner gets some sun, which helps the compost warm up."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "What do I do with the weeds between the beans?"
+   },
+   {
+    "role": "assistant",
+    "content": "Pull them by hand after rain, when the roots come out whole."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "The shed padlock code is 4-1-9-6."
+   },
+   {
+    "role": "assistant",
+    "content": "I'll remember the shed code 4-1-9-6."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "Should I water the beans in the morning or the evening?"
+   },
+   {
+    "role": "assistant",
+    "content": "Morning is better for the beans: the leaves dry before night, which keeps mould away."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "My soil test came back with a pH of 6.4."
+   },
+   {
+    "role": "assistant",
+    "content": "A pH of 6.4 is close to ideal for most vegetables."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "Is it too late to sow more courgettes?"
+   },
+   {
+    "role": "assistant",
+    "content": "Not yet. A second sowing of courgettes still has time before the nights turn cold."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "The allotment open day is on Saturday 21 June."
+   },
+   {
+    "role": "assistant",
+    "content": "21 June it is; the beds should look good by then."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "Can the radishes grow next to the carrots?"
+   },
+   {
+    "role": "assistant",
+    "content": "Yes, the radishes and the carrots get along; give each its own row so they share the light."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "I ordered netting from the club shop for 12 euros 50."
+   },
+   {
+    "role": "assistant",
+    "content": "12.50 for netting is fair; it keeps the birds off the lettuce."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "Can the radishes grow next to the beans?"
+   },
+   {
+    "role": "assistant",
+    "content": "Yes, the radishes and the beans get along; give each its own row so they share the light."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "The carrots went into row three, next to the onions."
+   },
+   {
+    "role": "assistant",
+    "content": "Carrots next to onions confuses the carrot fly; good choice."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "What do I do with the weeds between the carrots?"
+   },
+   {
+    "role": "assistant",
+    "content": "Pull them by hand after rain, when the roots come out whole."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "I plan to harvest the courgettes every two days once they start."
+   },
+   {
+    "role": "assistant",
+    "content": "Every two days keeps the courgettes small and tender."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "Can the courgettes grow next to the carrots?"
+   },
+   {
+    "role": "assistant",
+    "content": "Yes, the courgettes and the carrots get along; give each its own row so they share the light."
+   }
+  ]
+ ],
+ "questions": [
+  {
+   "question": "Which plot number is the garden?",
+   "answer": "Plot 17 at the Linden Lane allotments.",
+   "turn": 1
+  },
+  {
+   "question": "How big is the raised bed?",
+   "answer": "240 cm long and 90 cm wide.",
+   "turn": 3
+  },
+  {
+   "question": "Who is the neighbour that lends a wheelbarrow?",
+   "answer": "Agnes Varro.",
+   "turn": 5
+  },
+  {
+   "question": "When were the first beans sown?",
+   "answer": "On 14 April.",
+   "turn": 7
+  },
+  {
+   "question": "Which tomato variety was chosen?",
+   "answer": "Copper Lantern.",
+   "turn": 9
+  },
+  {
+   "question": "Where is the water tap and how far from the bed?",
+   "answer": "At the north gate, about 35 metres from the bed.",
+   "turn": 11
+  },
+  {
+   "question": "Why were potatoes skipped this year?",
+   "answer": "Because of the blight last season.",
+   "turn": 13
+  },
+  {
+   "question": "How much is the plot rent and when is it due?",
+   "answer": "46 euros per year, due every March.",
+   "turn": 15
+  },
+  {
+   "question": "Where is the compost bin?",
+   "answer": "In the south-east corner.",
+   "turn": 17
+  },
+  {
+   "question": "What is the shed padlock code?",
+   "answer": "4-1-9-6.",
+   "turn": 19
+  },
+  {
+   "question": "What was the soil pH?",
+   "answer": "6.4.",
+   "turn": 21
+  },
+  {
+   "question": "When is the allotment open day?",
+   "answer": "Saturday 21 June.",
+   "turn": 23
+  },
+  {
+   "question": "How much did the netting cost?",
+   "answer": "12 euros 50.",
+   "turn": 25
+  },
+  {
+   "question": "In which row are the carrots?",
+   "answer": "Row three, next to the onions.",
+   "turn": 27
+  },
+  {
+   "question": "How often will the courgettes be harvested?",
+   "answer": "Every two days once they start.",
+   "turn": 29
+  }
+ ]
+}

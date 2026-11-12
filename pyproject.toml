@@ -21,6 +21,9 @@ dependencies = [
     "torch>=2.15.0",
 ]
 
+[project.scripts]
+ccm-eval = "conversation_cluster_memory.evaluation.cli:main"
+
 [build-system]
 requires = ["uv_build>=0.12.10,<0.13.0"]
 build-backend = "uv_build"
@@ -32,6 +35,13 @@ dev = [
     "ruff>=0.17.4",
     "ty>=0.0.101",
 ]
+# The evaluation (`uv run ccm-eval`); run by hand, never by the gate.
+eval = [
+    "deepeval>=4.3.4",
+]
+
+[tool.uv]
+default-groups = ["dev", "eval"]
 
 [tool.ruff]
 line-length = 100
@@ -41,6 +51,8 @@ select = ["E", "F", "I", "B", "UP"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# DeepEval (dependency group eval) brings pytest plugins; the test suite never runs DeepEval.
+addopts = "-p no:deepeval -p no:asyncio -p no:rerunfailures -p no:repeat -p no:xdist"
 
 [tool.uv.sources]
 torch = [{ index = "pytorch-cpu" }]
