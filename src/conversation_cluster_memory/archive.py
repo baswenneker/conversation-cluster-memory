@@ -58,22 +58,27 @@ CREATE TABLE IF NOT EXISTS summarized_turns (
     summary INTEGER NOT NULL REFERENCES summaries (id),
     PRIMARY KEY (conversation, turn)
 );
--- Keyword search (BM25) over summaries and their anchors. The period anchor is left out: its
--- dates would match any number in a query; a hit carries its time range anyway.
+-- Keyword search (BM25) over each cluster's current summary and its anchors. Superseded
+-- summaries are removed, so a topic summarized many times does not make its own words common.
+-- The period anchor is left out: its dates would match any number in a query; a hit carries
+-- its time range anyway.
 CREATE VIRTUAL TABLE IF NOT EXISTS summaries_fts USING fts5 (
-    text, subject, names, conversation UNINDEXED
+    text, subject, names, conversation UNINDEXED, cluster UNINDEXED
 );
 CREATE TRIGGER IF NOT EXISTS summaries_fts_insert AFTER INSERT ON summaries BEGIN
-    INSERT INTO summaries_fts (rowid, text, subject, names, conversation) VALUES (
+    DELETE FROM summaries_fts WHERE conversation = new.conversation AND cluster = new.cluster;
+    INSERT INTO summaries_fts (rowid, text, subject, names, conversation, cluster) VALUES (
         new.id, new.text, json_extract(new.anchors, '$.subject'),
-        json_extract(new.anchors, '$.names'), new.conversation
+        json_extract(new.anchors, '$.names'), new.conversation, new.cluster
     );
 END;
 -- Summaries stored before keyword search existed.
-INSERT INTO summaries_fts (rowid, text, subject, names, conversation)
+INSERT INTO summaries_fts (rowid, text, subject, names, conversation, cluster)
     SELECT id, text, json_extract(anchors, '$.subject'), json_extract(anchors, '$.names'),
-        conversation
-    FROM summaries WHERE id NOT IN (SELECT rowid FROM summaries_fts);
+        conversation, cluster
+    FROM summaries
+    WHERE id IN (SELECT MAX(id) FROM summaries GROUP BY conversation, cluster)
+        AND id NOT IN (SELECT rowid FROM summaries_fts);
 """
 
 
@@ -230,8 +235,8 @@ class MessageStore:
         """Clusters whose current summary or anchors contain a word of the query, as
         (cluster, BM25 score), best first; only scores of at least `min_score`.
 
-        BM25 statistics span every summary in the file, so scores are comparable within one
-        search, not across archives.
+        BM25 statistics span the current summaries of every conversation in the file, so a
+        word common in other conversations scores lower here too.
         """
         words = re.findall(r"\w+", query)
         if not words:
@@ -239,12 +244,9 @@ class MessageStore:
         match = " OR ".join(f'"{word}"' for word in words)
         with self._lock:
             rows = self._db.execute(
-                "SELECT s.cluster, -bm25(summaries_fts) AS score FROM summaries_fts"
-                " JOIN summaries s ON s.id = summaries_fts.rowid"
-                " WHERE summaries_fts MATCH ? AND summaries_fts.conversation = ?"
-                " AND s.id IN (SELECT MAX(id) FROM summaries WHERE conversation = ?"
-                " GROUP BY cluster) ORDER BY score DESC, s.cluster",
-                (match, self._conversation, self._conversation),
+                "SELECT cluster, -bm25(summaries_fts) AS score FROM summaries_fts"
+                " WHERE summaries_fts MATCH ? AND conversation = ? ORDER BY score DESC, cluster",
+                (match, self._conversation),
             ).fetchall()
         return [(cluster, score) for cluster, score in rows if score >= min_score]
 
