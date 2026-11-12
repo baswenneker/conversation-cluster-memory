@@ -48,6 +48,7 @@ def storage_id(key: KeyLike) -> str:
     return json.dumps(key_parts(key))
 
 
-def collection_name(key: KeyLike) -> str:
-    """A Chroma collection name for this conversation (Chroma restricts names to [a-zA-Z0-9._-])."""
-    return "c" + hashlib.sha256(storage_id(key).encode()).hexdigest()[:40]
+def collection_name(storage: str) -> str:
+    """A Chroma collection name for the conversation with this `storage_id` (Chroma restricts
+    names to [a-zA-Z0-9._-])."""
+    return "c" + hashlib.sha256(storage.encode()).hexdigest()[:40]

@@ -26,6 +26,17 @@ assistant can continue the conversation later from the summary alone.
 
 Return the summary text plus anchors: the subject, the period, and the names mentioned."""
 
+MERGE_PROMPT = """\
+You merge the summaries of several earlier topics of a conversation between a user and an \
+assistant into one shorter summary of that period, so that the assistant can continue the \
+conversation later from it alone.
+
+- Keep names, identifiers, numbers, dates and decisions literally, exactly as written.
+- Invent nothing: leave out what the summaries do not say.
+- Keep every topic recognisable; drop repetition and wording, not facts.
+
+Return the summary text plus anchors: the subject, the period, and the names mentioned."""
+
 
 class Summary(BaseModel):
     """A summary of one topic of a conversation, with anchors to find it again."""
@@ -84,8 +95,20 @@ def summarize(
     if previous is not None:
         parts.append(f"Previous summary:\n{previous}")
     parts.append(f"{'New turns' if previous is not None else 'Turns'}:\n{transcript}")
+    return _structured(model, SUMMARY_PROMPT, "\n\n".join(parts))
+
+
+def merge_summaries(
+    model: BaseChatModel, summaries: Sequence[ClusterSummary], period: str
+) -> tuple[Summary, dict[str, int]]:
+    """One period summary of the summaries; returns it and its usage."""
+    merged = "\n\n".join(previous_text(s) for s in summaries)
+    return _structured(model, MERGE_PROMPT, f"Period: {period}\n\nSummaries:\n{merged}")
+
+
+def _structured(model: BaseChatModel, prompt: str, request: str) -> tuple[Summary, dict[str, int]]:
     result = model.with_structured_output(Summary, include_raw=True).invoke(
-        [SystemMessage(SUMMARY_PROMPT), HumanMessage("\n\n".join(parts))]
+        [SystemMessage(prompt), HumanMessage(request)]
     )
     assert isinstance(result, dict)
     if result.get("parsing_error") is not None:
