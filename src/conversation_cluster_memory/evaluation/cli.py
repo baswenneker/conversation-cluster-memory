@@ -103,7 +103,7 @@ def _sweep(loaded: list[conversations.Conversation], args: argparse.Namespace) -
             print(f"ccm-eval sweep: {setting} = {value}", file=sys.stderr)
             try:
                 result, _ = harness.run(loaded, settings, 0.9, "", now)
-            except MissingTokenMeasurementError as error:
+            except Exception as error:  # one failed cell must not lose the paid ones
                 rows.append(SweepRow(setting, str(value), None, f"failed: {error}"))
                 continue
             rows.append(SweepRow(setting, str(value), result))

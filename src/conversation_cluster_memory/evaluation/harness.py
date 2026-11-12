@@ -238,7 +238,8 @@ def judge(cases: list[Case], judge_model: str) -> tuple[dict[str, dict[str, floa
     for test in result.test_results:
         condition = cases[int(test.name)].condition
         for metric in test.metrics_data or []:
-            collected[condition].setdefault(metric.name, []).append(metric.score or 0.0)
+            if metric.score is not None:  # not scored (a judge error): left out of the mean
+                collected[condition].setdefault(metric.name, []).append(metric.score)
             if metric.evaluation_cost is None:
                 cost = None
             elif cost is not None:
