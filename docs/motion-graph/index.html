@@ -218,7 +218,7 @@ function sceneTurns(svg) {
     ],
     [
       ["USER", "Book the 9:40 one."],
-      ["TOOL CALL", 'book(flight="TP1351")'],
+      ["TOOL CALL", 'book(flight="XY123")'],
       ["TOOL RESULT", "ok · ref K7Q2"],
       ["ASSISTANT", "Booked, ref K7Q2."],
     ],
@@ -400,9 +400,9 @@ function sceneSummary(svg) {
     ["SUMMARY · C1", "lbl acc"],
     ["Trip to Lisbon, 12–16 May.", "t t-strong"],
     ["Flights under €400; booked the", "t t-strong"],
-    ["9:40 flight TP1351, ref K7Q2.", "t t-strong"],
+    ["9:40 flight XY123, ref K7Q2.", "t t-strong"],
     ["SUBJECT trip · PERIOD May", "lbl"],
-    ["NAMES Lisbon, TP1351, K7Q2", "lbl"],
+    ["NAMES Lisbon, XY123, K7Q2", "lbl"],
   ];
   lines.forEach(([str, cls], k) => anim(text(svg, card.x + 24, card.y + 40 + k * 30, str, cls), "rise", 1600 + k * 150));
 }
@@ -410,9 +410,9 @@ function sceneSummary(svg) {
 function sceneNewWindow(svg) {
   anim(text(svg, 44, 60, "WHAT THE MODEL RECEIVES", "lbl"), "fade", 0);
   const memory = anim(node(svg, "g"), "rise", 100);
-  node(memory, "rect", { x: 44, y: 100, width: 560, height: 200, rx: 13, class: "card-acc" });
+  node(memory, "rect", { x: 44, y: 100, width: 560, height: 236, rx: 13, class: "card-acc" });
   text(memory, 64, 128, "SYSTEM · CONVERSATION MEMORY", "lbl acc");
-  const summaries = ["C1 · trip to Lisbon · 360 tok", "C2 · recipes · 310 tok", "C3 · monthly budget · 280 tok", "C4 · garden plan · 240 tok"];
+  const summaries = ["P1 · Jan–Mar, period summary · 420 tok", "C1 · trip to Lisbon · 360 tok", "C2 · recipes · 310 tok", "C3 · monthly budget · 280 tok", "C4 · garden plan · 240 tok"];
   summaries.forEach((str, k) => {
     const g = anim(node(svg, "g"), "rise", 500 + k * 150);
     node(g, "rect", { x: 64, y: 145 + k * 36, width: 520, height: 28, rx: 4, class: "card" });
@@ -445,9 +445,9 @@ function sceneRetrieval(svg) {
 
   const hits = [
     { name: "C1 · trip to Lisbon", status: "IN WINDOW · SKIPPED", cls: "lbl" },
-    { name: "C0 · flights in March", status: "620 TOK · ADDED", cls: "lbl acc" },
-    { name: "C2 · recipes", status: "540 TOK · ADDED", cls: "lbl acc" },
-    { name: "C4 · garden plan", status: "480 TOK · OVER BUDGET", cls: "lbl" },
+    { name: "P1 › flights in March", status: "620 TOK · ADDED", cls: "lbl acc" },
+    { name: "P1 › hotel deposit", status: "540 TOK · ADDED", cls: "lbl acc" },
+    { name: "P1 › visa papers", status: "480 TOK · OVER BUDGET", cls: "lbl" },
   ];
   hits.forEach((hit, k) => {
     const y = 70 + k * 56;
@@ -470,7 +470,7 @@ function sceneRetrieval(svg) {
   node(win, "rect", { x: 40, y: 320, width: 480, height: 44, rx: 4, class: "card" });
   text(win, 56, 347, "MEMORY MESSAGE", "lbl");
   node(win, "rect", { x: 530, y: 320, width: 280, height: 44, rx: 4, class: "card-acc" });
-  text(win, 546, 347, "HITS · C0, C2", "lbl acc");
+  text(win, 546, 347, "HITS · 2 FROM P1", "lbl acc");
   node(win, "rect", { x: 820, y: 320, width: 740, height: 44, rx: 4, class: "card" });
   text(win, 836, 347, "RECENT WINDOW · 10 TURNS", "lbl");
 }
@@ -517,13 +517,13 @@ const STEPS = [
   },
   {
     title: "The window: memory plus recent turns",
-    body: "The model now receives one memory message with the summaries in time order, followed by the ten most recent turns, word for word.",
+    body: "The model now receives one memory message with the summaries in time order, the oldest already merged into a period summary, followed by the ten most recent turns, word for word.",
     params: ["keep_recent_turns = 10"],
     scene: sceneNewWindow,
   },
   {
     title: "A question triggers hybrid retrieval",
-    body: "The latest user message is searched by vector and by keyword. Hits already in the window are skipped; the rest are added until the token budget is used.",
+    body: "The latest user message is searched by vector and by keyword, over every summary level in the archive. Hits already in the window are skipped; the rest are added until the token budget is used.",
     params: ["retrieval_token_budget = 1500", "retrieval_k = 3", "retrieval_min_similarity = 0.5"],
     metric: { from: 0, to: 1160, label: "tokens added, budget 1500", delay: 2200 },
     scene: sceneRetrieval,
