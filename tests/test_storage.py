@@ -14,13 +14,13 @@ from tests.test_turns_and_window import add_turns
 
 def test_a_reopened_memory_has_the_same_messages_and_vectors(tmp_path: Path) -> None:
     memory = ConversationClusterMemory(
-        "c1", path=tmp_path, embeddings=FakeEmbeddings(), keep_recent_turns=2
+        "c1", path=tmp_path, embeddings=FakeEmbeddings(), keep_recent_turns=2, auto_compact="inline"
     )
     add_turns(memory, 4)
     window, vectors = memory.window(), memory.vectors.turns()
 
     reopened = ConversationClusterMemory(
-        "c1", path=tmp_path, embeddings=FakeEmbeddings(), keep_recent_turns=2
+        "c1", path=tmp_path, embeddings=FakeEmbeddings(), keep_recent_turns=2, auto_compact="inline"
     )
 
     assert reopened.window() == window
@@ -29,16 +29,22 @@ def test_a_reopened_memory_has_the_same_messages_and_vectors(tmp_path: Path) -> 
 
 def test_without_a_path_nothing_touches_disk(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.chdir(tmp_path)
-    memory = ConversationClusterMemory("c1", embeddings=FakeEmbeddings(), keep_recent_turns=1)
+    memory = ConversationClusterMemory(
+        "c1", embeddings=FakeEmbeddings(), keep_recent_turns=1, auto_compact="inline"
+    )
     add_turns(memory, 3)
 
     assert list(tmp_path.iterdir()) == []
 
 
 def test_two_in_memory_memories_for_one_key_are_separate() -> None:
-    first = ConversationClusterMemory("c1", embeddings=FakeEmbeddings(), keep_recent_turns=1)
+    first = ConversationClusterMemory(
+        "c1", embeddings=FakeEmbeddings(), keep_recent_turns=1, auto_compact="inline"
+    )
     add_turns(first, 3)
-    second = ConversationClusterMemory("c1", embeddings=FakeEmbeddings(), keep_recent_turns=1)
+    second = ConversationClusterMemory(
+        "c1", embeddings=FakeEmbeddings(), keep_recent_turns=1, auto_compact="inline"
+    )
 
     assert second.window() == []
     assert second.vectors.turns() == set()
@@ -55,7 +61,9 @@ def test_opening_with_another_embedding_model_is_refused(tmp_path: Path) -> None
 
 
 def test_querying_with_another_embedding_model_is_refused(embeddings) -> None:
-    memory = ConversationClusterMemory("c1", embeddings=embeddings, keep_recent_turns=1)
+    memory = ConversationClusterMemory(
+        "c1", embeddings=embeddings, keep_recent_turns=1, auto_compact="inline"
+    )
     add_turns(memory, 2)
 
     assert memory.vectors.query(embeddings.embed_query("answer 1"), 1, "fake-model")[0][0] == 1
@@ -69,12 +77,14 @@ def test_conversations_never_see_each_others_messages_or_vectors(tmp_path: Path)
         path=tmp_path,
         embeddings=FakeEmbeddings(),
         keep_recent_turns=1,
+        auto_compact="inline",
     )
     bob = ConversationClusterMemory(
         ConversationKey("c1", user="bob"),
         path=tmp_path,
         embeddings=FakeEmbeddings(),
         keep_recent_turns=1,
+        auto_compact="inline",
     )
     add_turns(alice, 3)
     bob.add_message(HumanMessage("hello"))

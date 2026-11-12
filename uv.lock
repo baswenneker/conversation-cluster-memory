@@ -486,8 +486,12 @@ dependencies = [
     { name = "langchain-core" },
     { name = "langchain-huggingface" },
     { name = "langchain-openai" },
+    { name = "numpy" },
+    { name = "pydantic" },
     { name = "python-dotenv" },
+    { name = "scipy" },
     { name = "sentence-transformers" },
+    { name = "tiktoken" },
     { name = "torch", version = "2.15.0", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "sys_platform == 'darwin'" },
     { name = "torch", version = "2.15.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "sys_platform != 'darwin'" },
 ]
@@ -506,8 +510,12 @@ requires-dist = [
     { name = "langchain-core", specifier = ">=1.8.0" },
     { name = "langchain-huggingface", specifier = ">=1.2.3" },
     { name = "langchain-openai", specifier = ">=1.7.4" },
+    { name = "numpy", specifier = ">=2.5.4" },
+    { name = "pydantic", specifier = ">=2" },
     { name = "python-dotenv", specifier = ">=1.2.4" },
+    { name = "scipy", specifier = ">=1.18.1" },
     { name = "sentence-transformers", specifier = ">=6.3.0" },
+    { name = "tiktoken", specifier = ">=0.14.0" },
     { name = "torch", specifier = ">=2.15.0", index = "https://download.pytorch.org/whl/cpu" },
 ]
 
