@@ -19,6 +19,9 @@ class VectorStore:
         self.name = name
         self.model_id = model_id
         self._collection = self._open()
+        if self._collection.count() == 0:  # no vectors to mix, e.g. after a reindex cut short
+            if self._collection.metadata.get("embedding_model") != model_id:
+                self.reset(model_id)
         self.check(self._collection.metadata.get("embedding_model"))
 
     def _open(self) -> Collection:

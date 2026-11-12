@@ -603,28 +603,30 @@ class ConversationClusterMemory:
         outside the recent window, every current summary, and from those the centroids.
 
         Every new vector is made before an old one is removed, so a failing model changes
-        nothing. A crash after that leaves vectors missing, which the next round backfills.
+        nothing. A crash after that leaves empty collections, which open with either model and
+        which the next round backfills.
         """
         with self._round_lock:
             last_outside = self.archive.last_turn() - self.keep_recent_turns
-            turns = self.archive.turns(1, last_outside) if last_outside > 0 else {}
-            numbers = sorted(turns)
+            # Clustered turns too: they may lie inside a recent window made larger since.
+            wanted = set(range(1, last_outside + 1)) | self.archive.clustered_turns()
+            turns = self.archive.turns(1, max(wanted)) if wanted else {}
+            numbers = sorted(wanted & turns.keys())
             summaries = {s.id: s.text for s in self.archive.summaries().values()}
             texts = [self.embedding_text(turns[n]) for n in numbers] + list(summaries.values())
             made = new_embeddings.embed_documents(texts) if texts else []
             turn_vectors = dict(zip(numbers, made[: len(numbers)], strict=True))
+            centroids = {
+                cluster: centroid([turn_vectors[t] for t in members])
+                for cluster, _, members in self.archive.clusters() + self.archive.periods()
+            }
             model_id = embedding_model_id(new_embeddings)
             for store in (self.vectors, self.centroids, self.summary_vectors):
                 store.reset(model_id)
             self.embeddings = new_embeddings
             self.vectors.add(turn_vectors)
             self.summary_vectors.add(dict(zip(summaries, made[len(numbers) :], strict=True)))
-            self.centroids.add(
-                {
-                    cluster: centroid([turn_vectors[t] for t in members])
-                    for cluster, _, members in self.archive.clusters() + self.archive.periods()
-                }
-            )
+            self.centroids.add(centroids)
 
     def retrieve(self, query: str, k: int | None = None) -> list[RetrievalHit]:
         """The clusters of this conversation that match the query, best first: at most `k`

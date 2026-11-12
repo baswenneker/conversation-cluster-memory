@@ -116,6 +116,9 @@ def _cost(args: argparse.Namespace) -> int:
     turns = sum(
         len(c.turns) for c in conversations.load(args.conversations) if c.name in latest["tokens"]
     )
+    if not rounds or not turns:
+        print(f"ccm-eval: {results[-1]} has no measured round to extrapolate", file=sys.stderr)
+        return 1
     per_round = sum(spent) / rounds
     yearly_rounds = args.turns_per_week * 52 * rounds / turns
     print(
