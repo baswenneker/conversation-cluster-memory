@@ -1,0 +1,883 @@
+{
+ "name": "switching",
+ "description": "80 turns that switch between a trip, piano lessons and painting a room, returning to each topic.",
+ "turns": [
+  [
+   {
+    "role": "user",
+    "content": "Is the museum worth a whole day?"
+   },
+   {
+    "role": "assistant",
+    "content": "The museum fills half a day comfortably; pair it with the botanical garden for the afternoon."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "We booked the guesthouse Casa Velha in Valmora for 5 nights."
+   },
+   {
+    "role": "assistant",
+    "content": "Five nights at Casa Velha in Valmora, lovely."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "Is the market worth a whole day?"
+   },
+   {
+    "role": "assistant",
+    "content": "The market fills half a day comfortably; pair it with the museum for the afternoon."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "Any tips for eating near the botanical garden?"
+   },
+   {
+    "role": "assistant",
+    "content": "Near the botanical garden, the small places on the side streets are quieter than the main square."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "What should I pack for the museum?"
+   },
+   {
+    "role": "assistant",
+    "content": "For the museum: layers, a rain jacket and shoes you can walk in all day."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "Our train leaves on 3 May at 07:42 from platform 6."
+   },
+   {
+    "role": "assistant",
+    "content": "3 May, 07:42, platform 6. Set an alarm."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "Any tips for eating near the market?"
+   },
+   {
+    "role": "assistant",
+    "content": "Near the market, the small places on the side streets are quieter than the main square."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "Is the lighthouse worth a whole day?"
+   },
+   {
+    "role": "assistant",
+    "content": "The lighthouse fills half a day comfortably; pair it with the cliff path for the afternoon."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "Any tips for eating near the cliff path?"
+   },
+   {
+    "role": "assistant",
+    "content": "Near the cliff path, the small places on the side streets are quieter than the main square."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "Is the botanical garden worth a whole day?"
+   },
+   {
+    "role": "assistant",
+    "content": "The botanical garden fills half a day comfortably; pair it with the lighthouse for the afternoon."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "The minuet sounds uneven. Why?"
+   },
+   {
+    "role": "assistant",
+    "content": "Uneven minuet usually means the thumb is late; play it in rhythms to even it out."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "My teacher, Mr Olsen, gave me the Minuet in G as my next piece."
+   },
+   {
+    "role": "assistant",
+    "content": "The Minuet in G is a classic next step."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "My left hand is still slow in the arpeggios. Any advice?"
+   },
+   {
+    "role": "assistant",
+    "content": "Practise the arpeggios with the left hand alone, slowly, then add the right hand."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "My left hand is still slow in the waltz. Any advice?"
+   },
+   {
+    "role": "assistant",
+    "content": "Practise the waltz with the left hand alone, slowly, then add the right hand."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "Should I use the metronome for the etude?"
+   },
+   {
+    "role": "assistant",
+    "content": "Yes, start the etude well below tempo and raise it a few beats per week."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "I practise on Tuesdays and Fridays from 19:30."
+   },
+   {
+    "role": "assistant",
+    "content": "Tuesdays and Fridays at 19:30, a good rhythm."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "The minuet sounds uneven. Why?"
+   },
+   {
+    "role": "assistant",
+    "content": "Uneven minuet usually means the thumb is late; play it in rhythms to even it out."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "The minuet sounds uneven. Why?"
+   },
+   {
+    "role": "assistant",
+    "content": "Uneven minuet usually means the thumb is late; play it in rhythms to even it out."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "The arpeggios sounds uneven. Why?"
+   },
+   {
+    "role": "assistant",
+    "content": "Uneven arpeggios usually means the thumb is late; play it in rhythms to even it out."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "My left hand is still slow in the scales. Any advice?"
+   },
+   {
+    "role": "assistant",
+    "content": "Practise the scales with the left hand alone, slowly, then add the right hand."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "What brush works best for the window frames?"
+   },
+   {
+    "role": "assistant",
+    "content": "An angled brush for the edges of the window frames, a roller for the flat parts."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "The wall colour is called Morning Fog, code MF-221."
+   },
+   {
+    "role": "assistant",
+    "content": "Morning Fog, MF-221, noted."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "What brush works best for the wall?"
+   },
+   {
+    "role": "assistant",
+    "content": "An angled brush for the edges of the wall, a roller for the flat parts."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "What brush works best for the radiator?"
+   },
+   {
+    "role": "assistant",
+    "content": "An angled brush for the edges of the radiator, a roller for the flat parts."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "Can I paint the radiator when it is humid?"
+   },
+   {
+    "role": "assistant",
+    "content": "Better wait: on a humid day the radiator dries slowly and can stay tacky."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "The living room wall is 4.2 metres wide and 2.6 metres high."
+   },
+   {
+    "role": "assistant",
+    "content": "So about 11 square metres per coat."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "What brush works best for the radiator?"
+   },
+   {
+    "role": "assistant",
+    "content": "An angled brush for the edges of the radiator, a roller for the flat parts."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "Can I paint the wall when it is humid?"
+   },
+   {
+    "role": "assistant",
+    "content": "Better wait: on a humid day the wall dries slowly and can stay tacky."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "Can I paint the radiator when it is humid?"
+   },
+   {
+    "role": "assistant",
+    "content": "Better wait: on a humid day the radiator dries slowly and can stay tacky."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "Can I paint the radiator when it is humid?"
+   },
+   {
+    "role": "assistant",
+    "content": "Better wait: on a humid day the radiator dries slowly and can stay tacky."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "What should I pack for the botanical garden?"
+   },
+   {
+    "role": "assistant",
+    "content": "For the botanical garden: layers, a rain jacket and shoes you can walk in all day."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "My friend Ines Calder joins us on the third day."
+   },
+   {
+    "role": "assistant",
+    "content": "Ines Calder from day three, noted."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "How do we get from the station to the market?"
+   },
+   {
+    "role": "assistant",
+    "content": "A local bus goes to the market every half hour; walking takes about forty minutes."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "What should I pack for the cliff path?"
+   },
+   {
+    "role": "assistant",
+    "content": "For the cliff path: layers, a rain jacket and shoes you can walk in all day."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "What should I pack for the market?"
+   },
+   {
+    "role": "assistant",
+    "content": "For the market: layers, a rain jacket and shoes you can walk in all day."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "The ferry to the island costs 18 euros return."
+   },
+   {
+    "role": "assistant",
+    "content": "18 euros return for the ferry."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "Any tips for eating near the lighthouse?"
+   },
+   {
+    "role": "assistant",
+    "content": "Near the lighthouse, the small places on the side streets are quieter than the main square."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "How do we get from the station to the cliff path?"
+   },
+   {
+    "role": "assistant",
+    "content": "A local bus goes to the cliff path every half hour; walking takes about forty minutes."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "My left hand is still slow in the scales. Any advice?"
+   },
+   {
+    "role": "assistant",
+    "content": "Practise the scales with the left hand alone, slowly, then add the right hand."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "My target tempo for the scales is 96 beats per minute."
+   },
+   {
+    "role": "assistant",
+    "content": "96 bpm is a good target for the scales."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "My left hand is still slow in the etude. Any advice?"
+   },
+   {
+    "role": "assistant",
+    "content": "Practise the etude with the left hand alone, slowly, then add the right hand."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "Should I use the metronome for the chord changes?"
+   },
+   {
+    "role": "assistant",
+    "content": "Yes, start the chord changes well below tempo and raise it a few beats per week."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "How long should I spend on the scales each day?"
+   },
+   {
+    "role": "assistant",
+    "content": "Ten focused minutes on the scales beat half an hour of running through it."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "The recital is in the community hall on 14 June."
+   },
+   {
+    "role": "assistant",
+    "content": "14 June in the community hall; plenty of time."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "My left hand is still slow in the scales. Any advice?"
+   },
+   {
+    "role": "assistant",
+    "content": "Practise the scales with the left hand alone, slowly, then add the right hand."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "My left hand is still slow in the arpeggios. Any advice?"
+   },
+   {
+    "role": "assistant",
+    "content": "Practise the arpeggios with the left hand alone, slowly, then add the right hand."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "Can I paint the radiator when it is humid?"
+   },
+   {
+    "role": "assistant",
+    "content": "Better wait: on a humid day the radiator dries slowly and can stay tacky."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "I bought 2 tins of 2.5 litres each."
+   },
+   {
+    "role": "assistant",
+    "content": "Five litres should cover two coats."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "How many coats does the wall need?"
+   },
+   {
+    "role": "assistant",
+    "content": "Two thin coats on the wall look better than one thick one."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "Can I paint the ceiling when it is humid?"
+   },
+   {
+    "role": "assistant",
+    "content": "Better wait: on a humid day the ceiling dries slowly and can stay tacky."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "How many coats does the door need?"
+   },
+   {
+    "role": "assistant",
+    "content": "Two thin coats on the door look better than one thick one."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "My brother Teo helps me paint on Saturday."
+   },
+   {
+    "role": "assistant",
+    "content": "Teo on Saturday makes it a quicker job."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "What brush works best for the radiator?"
+   },
+   {
+    "role": "assistant",
+    "content": "An angled brush for the edges of the radiator, a roller for the flat parts."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "Do I need to sand the radiator before painting?"
+   },
+   {
+    "role": "assistant",
+    "content": "A light sanding of the radiator helps the paint grip; wipe the dust off afterwards."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "How do we get from the station to the cliff path?"
+   },
+   {
+    "role": "assistant",
+    "content": "A local bus goes to the cliff path every half hour; walking takes about forty minutes."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "We decided to skip the cable car because of the queue."
+   },
+   {
+    "role": "assistant",
+    "content": "Skipping the cable car saves hours."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "How do we get from the station to the cliff path?"
+   },
+   {
+    "role": "assistant",
+    "content": "A local bus goes to the cliff path every half hour; walking takes about forty minutes."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "How do we get from the station to the museum?"
+   },
+   {
+    "role": "assistant",
+    "content": "A local bus goes to the museum every half hour; walking takes about forty minutes."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "What should I pack for the cliff path?"
+   },
+   {
+    "role": "assistant",
+    "content": "For the cliff path: layers, a rain jacket and shoes you can walk in all day."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "How do we get from the station to the old town?"
+   },
+   {
+    "role": "assistant",
+    "content": "A local bus goes to the old town every half hour; walking takes about forty minutes."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "Is the old town worth a whole day?"
+   },
+   {
+    "role": "assistant",
+    "content": "The old town fills half a day comfortably; pair it with the market for the afternoon."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "Any tips for eating near the market?"
+   },
+   {
+    "role": "assistant",
+    "content": "Near the market, the small places on the side streets are quieter than the main square."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "Should I use the metronome for the minuet?"
+   },
+   {
+    "role": "assistant",
+    "content": "Yes, start the minuet well below tempo and raise it a few beats per week."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "We agreed I play the waltz from memory at the recital."
+   },
+   {
+    "role": "assistant",
+    "content": "Playing the waltz from memory is a nice challenge."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "My left hand is still slow in the chord changes. Any advice?"
+   },
+   {
+    "role": "assistant",
+    "content": "Practise the chord changes with the left hand alone, slowly, then add the right hand."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "My left hand is still slow in the waltz. Any advice?"
+   },
+   {
+    "role": "assistant",
+    "content": "Practise the waltz with the left hand alone, slowly, then add the right hand."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "The waltz sounds uneven. Why?"
+   },
+   {
+    "role": "assistant",
+    "content": "Uneven waltz usually means the thumb is late; play it in rhythms to even it out."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "Should I use the metronome for the arpeggios?"
+   },
+   {
+    "role": "assistant",
+    "content": "Yes, start the arpeggios well below tempo and raise it a few beats per week."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "How long should I spend on the waltz each day?"
+   },
+   {
+    "role": "assistant",
+    "content": "Ten focused minutes on the waltz beat half an hour of running through it."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "Should I use the metronome for the waltz?"
+   },
+   {
+    "role": "assistant",
+    "content": "Yes, start the waltz well below tempo and raise it a few beats per week."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "My left hand is still slow in the scales. Any advice?"
+   },
+   {
+    "role": "assistant",
+    "content": "Practise the scales with the left hand alone, slowly, then add the right hand."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "How many coats does the ceiling need?"
+   },
+   {
+    "role": "assistant",
+    "content": "Two thin coats on the ceiling look better than one thick one."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "We decided to paint the ceiling first and the wall second."
+   },
+   {
+    "role": "assistant",
+    "content": "Ceiling first is right: drips fall on the unpainted wall."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "How many coats does the wall need?"
+   },
+   {
+    "role": "assistant",
+    "content": "Two thin coats on the wall look better than one thick one."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "How many coats does the ceiling need?"
+   },
+   {
+    "role": "assistant",
+    "content": "Two thin coats on the ceiling look better than one thick one."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "What brush works best for the wall?"
+   },
+   {
+    "role": "assistant",
+    "content": "An angled brush for the edges of the wall, a roller for the flat parts."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "Do I need to sand the radiator before painting?"
+   },
+   {
+    "role": "assistant",
+    "content": "A light sanding of the radiator helps the paint grip; wipe the dust off afterwards."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "Can I paint the wall when it is humid?"
+   },
+   {
+    "role": "assistant",
+    "content": "Better wait: on a humid day the wall dries slowly and can stay tacky."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "What brush works best for the window frames?"
+   },
+   {
+    "role": "assistant",
+    "content": "An angled brush for the edges of the window frames, a roller for the flat parts."
+   }
+  ],
+  [
+   {
+    "role": "user",
+    "content": "Can I paint the wall when it is humid?"
+   },
+   {
+    "role": "assistant",
+    "content": "Better wait: on a humid day the wall dries slowly and can stay tacky."
+   }
+  ]
+ ],
+ "questions": [
+  {
+   "question": "Where are we staying and for how long?",
+   "answer": "Casa Velha in Valmora, for 5 nights.",
+   "turn": 2
+  },
+  {
+   "question": "When and from which platform does our train leave?",
+   "answer": "On 3 May at 07:42, from platform 6.",
+   "turn": 6
+  },
+  {
+   "question": "Which piece did the teacher assign, and who is the teacher?",
+   "answer": "The Minuet in G, from Mr Olsen.",
+   "turn": 12
+  },
+  {
+   "question": "When do I practise?",
+   "answer": "Tuesdays and Fridays from 19:30.",
+   "turn": 16
+  },
+  {
+   "question": "Which wall colour was chosen?",
+   "answer": "Morning Fog, code MF-221.",
+   "turn": 22
+  },
+  {
+   "question": "How large is the living room wall?",
+   "answer": "4.2 metres wide and 2.6 metres high.",
+   "turn": 26
+  },
+  {
+   "question": "Who joins on the third day?",
+   "answer": "Ines Calder.",
+   "turn": 32
+  },
+  {
+   "question": "How much does the ferry cost?",
+   "answer": "18 euros return.",
+   "turn": 36
+  },
+  {
+   "question": "What is the target tempo for the scales?",
+   "answer": "96 beats per minute.",
+   "turn": 40
+  },
+  {
+   "question": "Where and when is the recital?",
+   "answer": "In the community hall on 14 June.",
+   "turn": 44
+  },
+  {
+   "question": "How much paint was bought?",
+   "answer": "2 tins of 2.5 litres each.",
+   "turn": 48
+  },
+  {
+   "question": "Who helps paint, and when?",
+   "answer": "Brother Teo, on Saturday.",
+   "turn": 52
+  },
+  {
+   "question": "Why did we skip the cable car?",
+   "answer": "Because of the queue.",
+   "turn": 56
+  },
+  {
+   "question": "What did we agree about the waltz?",
+   "answer": "I play it from memory at the recital.",
+   "turn": 64
+  },
+  {
+   "question": "In what order will the room be painted?",
+   "answer": "The ceiling first, then the wall.",
+   "turn": 73
+  }
+ ]
+}

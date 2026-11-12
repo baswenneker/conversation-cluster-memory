@@ -78,8 +78,25 @@ tools = [memory.as_tool()]  # recall_memory(query), for a model that searches me
 
 The demo (`uv run python -m conversation_cluster_memory`) shows a built-in conversation, which turns have a vector, which turns fall into which cluster with their similarity to its centroid, each cluster's summary, the window in which the summaries replace their turns, and what retrieval finds for "do you remember when we talked about running shoes?". Summaries need `OPENAI_API_KEY`; without it the demo says so and shows the clusters unsummarized.
 
-## Evaluation results
+## Evaluation
+
+The evaluation replays three synthetic, domain-neutral conversations from [`eval/conversations/`](eval/conversations): `short` (30 turns, one topic), `long` (200 turns with large tool results) and `switching` (80 turns that return to earlier topics). Each has 15 questions about facts planted in it, with gold answers. They were generated once by `uv run ccm-eval generate` (deterministic) and are committed.
+
+```bash
+uv run ccm-eval run     # evaluate, write eval/results/<date>.json, update the block below
+uv run ccm-eval sweep   # compare parameter values, write eval/results/sweep-<date>.md
+```
+
+`ccm-eval run` replays each conversation with `auto_compact="inline"`. After every compaction round that summarized something, it asks every question whose fact is already replayed, in two conditions: the uncompressed window (every turn verbatim) and the compressed window plus retrieval for the question. DeepEval scores each answer on answer relevancy, contextual precision, contextual recall, faithfulness and factual correctness against the gold answer (GEval). A token metric records the window's tokens before and after each round and `(before − after) / before`. The run fails when the compressed mean score falls below 90% of the uncompressed one (`--min-ratio`), or when a conversation has no measured round.
+
+Models per role: the local embedding model, the summary model (`OPENAI_SUMMARY_MODEL`), the answer model (`OPENAI_ANSWER_MODEL`, default the summary model) and the judge (`OPENAI_JUDGE_MODEL`, default `gpt-6.1-terra`). Costs come from DeepEval's price list; a model without a price shows "n/a".
+
+The evaluation runs only locally, started by hand: it calls OpenAI with `OPENAI_API_KEY` from `.env` and stops with a clear error without it. No CI workflow and no test runs it. `ccm-eval run` rewrites only the block between the markers below; commit the updated README yourself. Every run stays as a file in `eval/results/`.
+
+`ccm-eval sweep` changes one parameter at a time from the defaults: `similarity_threshold` (0.6, 0.7), `keep_recent_turns` (5, 20), `min_batch_turns` (4, 12), the embedding text (a one-sentence LLM summary of the turn instead of its text) and `resummarize_strategy` (`full`). Each value is a full run, so a sweep costs about nine runs.
+
+### Evaluation results
 
 <!-- eval-results:start -->
-_No evaluation run yet. This block is replaced by the evaluation script after the first run._
+_No evaluation run yet. The numbers here will come from the latest local run of `uv run ccm-eval run`._
 <!-- eval-results:end -->
