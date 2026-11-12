@@ -241,12 +241,11 @@ function sceneTurns(svg) {
   });
 }
 
-function windowRow(svg, animate) {
+function windowRow(svg) {
   for (let i = 0; i < 18; i++) {
     const outer = node(svg, "g");
-    if (i < 8 && animate) anim(outer, "dim", 1300);
-    const g = chip(outer, i, chipX(i), ROW_Y);
-    if (animate) anim(g, "pop", i * 45);
+    if (i < 8) anim(outer, "dim", 1300);
+    anim(chip(outer, i, chipX(i), ROW_Y), "pop", i * 45);
   }
 }
 
@@ -265,7 +264,7 @@ function windowBracket(svg, delay, animate) {
 }
 
 function sceneWindow(svg) {
-  windowRow(svg, true);
+  windowRow(svg);
   windowBracket(svg, 1000, true);
   const x2 = chipX(7) + CHIP_W + 6;
   anim(path(svg, `M38 150 V136 H${x2} V150`, "hair-strong"), "draw", 1500);
