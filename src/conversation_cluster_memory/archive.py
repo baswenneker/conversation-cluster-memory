@@ -97,18 +97,23 @@ _TABLES = (
 
 
 def stored_conversations(path: Path) -> list[str]:
-    """The id of every conversation with a message in the archive file."""
+    """The id of every conversation with a row in the archive file. Every table counts: a
+    round that commits after its conversation was deleted leaves rows without messages."""
+    union = " UNION ".join(f"SELECT conversation FROM {table}" for table in _TABLES)
     with closing(sqlite3.connect(path)) as db:
-        rows = db.execute("SELECT DISTINCT conversation FROM messages").fetchall()
+        rows = db.execute(union).fetchall()
     return [conversation for (conversation,) in rows]
 
 
 def delete_conversations(path: Path, conversations: list[str]) -> None:
     """Remove every row of these conversations from the archive file, in one transaction."""
     marks = ",".join("?" * len(conversations))
-    with closing(sqlite3.connect(path)) as db, db:
-        for table in _TABLES:
-            db.execute(f"DELETE FROM {table} WHERE conversation IN ({marks})", conversations)
+    with closing(sqlite3.connect(path)) as db:
+        # Overwrite the freed pages, so deleted text cannot be read back from the file.
+        db.execute("PRAGMA secure_delete = ON")
+        with db:
+            for table in _TABLES:
+                db.execute(f"DELETE FROM {table} WHERE conversation IN ({marks})", conversations)
 
 
 class MessageStore:
