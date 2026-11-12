@@ -1,5 +1,6 @@
 """Embedding models and the text a turn is embedded as."""
 
+import functools
 import os
 from collections.abc import Callable, Sequence
 
@@ -17,8 +18,9 @@ class MissingOpenAIKeyError(RuntimeError):
     """An OpenAI component was requested but OPENAI_API_KEY is not set."""
 
 
+@functools.cache
 def default_embeddings() -> Embeddings:
-    """The local multilingual sentence-transformer (downloaded on first use, runs on CPU)."""
+    """The local multilingual sentence-transformer, loaded once per process (runs on CPU)."""
     from langchain_huggingface import HuggingFaceEmbeddings
 
     return HuggingFaceEmbeddings(model_name=DEFAULT_EMBEDDING_MODEL)

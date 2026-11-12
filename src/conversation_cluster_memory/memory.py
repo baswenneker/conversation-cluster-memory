@@ -69,11 +69,10 @@ class ConversationClusterMemory:
         texts = [self.embedding_text(turns[n]) for n in numbers]
         try:
             vectors = self.embeddings.embed_documents(texts)
+            self.vectors.add(dict(zip(numbers, vectors, strict=True)))
         except Exception:
-            # The messages are already stored; the next add_message backfills these turns.
+            # The message is already stored; the next add_message backfills these turns.
             logger.exception("embedding turns %s failed; retrying on the next message", numbers)
-            return
-        self.vectors.add(dict(zip(numbers, vectors, strict=True)))
 
     def window(self) -> list[BaseMessage]:
         last = self.archive.last_turn()

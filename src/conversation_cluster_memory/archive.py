@@ -26,7 +26,10 @@ class MessageStore:
 
     def __init__(self, path: Path | None, conversation: str) -> None:
         # Shared across threads; the lock serialises every use of the connection.
-        self._db = sqlite3.connect(":memory:" if path is None else path, check_same_thread=False)
+        # isolation_level=None: no implicit transactions; add() opens its own with BEGIN.
+        self._db = sqlite3.connect(
+            ":memory:" if path is None else path, check_same_thread=False, isolation_level=None
+        )
         self._lock = threading.Lock()
         self._db.executescript(_SCHEMA)
         self._conversation = conversation
@@ -57,6 +60,9 @@ class MessageStore:
         arrive before the first user message belong to the first turn.
         """
         with self._lock, self._db:
+            # Take the write lock before reading, so another connection to the same file
+            # cannot compute the same turn number at the same time.
+            self._db.execute("BEGIN IMMEDIATE")
             last = self._last_turn()
             opens = isinstance(message, HumanMessage) and self._has_user_message(last)
             turn = last + 1 if opens or last == 0 else last
