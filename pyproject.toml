@@ -1,13 +1,21 @@
 [project]
 name = "conversation-cluster-memory"
 version = "0.1.0"
-description = "Add your description here"
+description = "A memory layer that keeps a long conversation's model context bounded"
 readme = "README.md"
 authors = [
     { name = "Bas Wenneker", email = "bas@headingfwd.com" }
 ]
 requires-python = ">=3.13"
-dependencies = []
+dependencies = [
+    "chromadb>=1.5.9",
+    "langchain-core>=1.8.0",
+    "langchain-huggingface>=1.2.3",
+    "langchain-openai>=1.7.4",
+    "python-dotenv>=1.2.4",
+    "sentence-transformers>=6.3.0",
+    "torch>=2.15.0",
+]
 
 [build-system]
 requires = ["uv_build>=0.12.10,<0.13.0"]
@@ -15,6 +23,7 @@ build-backend = "uv_build"
 
 [dependency-groups]
 dev = [
+    "playwright>=1.65.1",
     "pytest>=9.2.0",
     "ruff>=0.17.4",
     "ty>=0.0.101",
@@ -28,3 +37,11 @@ select = ["E", "F", "I", "B", "UP"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.uv.sources]
+torch = [{ index = "pytorch-cpu" }]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true

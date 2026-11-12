@@ -1,0 +1,225 @@
+/*
+ * HeadingFWD Terminal — component stylesheet.
+ *
+ * The base and the .hf- helper layer, as they were in styles.css. Every value
+ * the tokens declare now comes from tokens.css (generated from tokens.json).
+ * What the token file cannot declare stays here, as the source wrote it.
+ */
+
+:root {
+  --hf-font-mono: "JetBrains Mono", ui-monospace, "Menlo", "Consolas", monospace;
+  --hf-border-window: 1px solid rgba(255, 255, 255, 0.09);
+  --hf-backdrop-terminal:
+    radial-gradient(120% 130% at 50% 0%, rgba(255, 255, 255, 0.18), transparent 42%),
+    radial-gradient(140% 120% at 50% 120%, rgba(0, 0, 0, 0.32), transparent 55%);
+  --hf-backdrop-editorial:
+    radial-gradient(120% 90% at 50% -10%, rgba(46, 230, 246, 0.07), rgba(0, 0, 0, 0) 55%);
+  --hf-grid-lines:
+    linear-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.06) 1px, transparent 1px);
+  --hf-grid-size-terminal: 38px 38px;
+  --hf-grid-size-editorial: 42px 42px;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+ * Base
+ * ───────────────────────────────────────────────────────────────────────── */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  color-scheme: dark;
+  background: var(--hf-ed-surface);
+}
+
+body {
+  margin: 0;
+  font-family: var(--hf-font-mono);
+  font-size: var(--hf-text-md);
+  line-height: var(--hf-leading-body);
+  letter-spacing: var(--hf-tracking-body);
+  -webkit-font-smoothing: antialiased;
+  background: var(--hf-ed-surface);
+  color: var(--hf-ed-ink);
+}
+
+::selection {
+  background: var(--hf-accent);
+  color: var(--hf-on-accent);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+ * Helper layer — bundle-only, prefixed .hf-
+ *
+ * Two surfaces, and the chrome that belongs to each. Put a design on one of
+ * the two surfaces first; everything else assumes it.
+ * ───────────────────────────────────────────────────────────────────────── */
+
+/* The cyan page the terminal sits on. */
+.hf-terminal-surface {
+  container-type: inline-size;
+  min-height: 100%;
+  padding: var(--hf-pad-page);
+  background-color: var(--hf-term-backdrop);
+  background-image: var(--hf-backdrop-terminal);
+  color: var(--hf-term-ink);
+}
+
+/* The near-black page an article sits on. */
+.hf-editorial-surface {
+  container-type: inline-size;
+  min-height: 100%;
+  background:
+    var(--hf-backdrop-editorial),
+    var(--hf-ed-surface);
+  color: var(--hf-ed-ink);
+}
+
+/* The faint dot grid drawn behind either surface. Give it a parent with
+   `position: relative; isolation: isolate`. */
+.hf-grid {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image: var(--hf-grid-lines);
+  background-size: var(--hf-grid-size-editorial);
+  mask-image: radial-gradient(ellipse 90% 720px at 50% 0, #000 20%, transparent 70%);
+}
+
+.hf-terminal-surface .hf-grid {
+  background-size: var(--hf-grid-size-terminal);
+  mask-image: radial-gradient(circle at 50% 45%, #000 30%, transparent 78%);
+}
+
+/* The terminal window: a dark panel that floats on the cyan. */
+.hf-window {
+  width: min(var(--hf-width-window), 100%);
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--hf-term-window);
+  border: var(--hf-border-window);
+  border-radius: var(--hf-radius-xl);
+  box-shadow: var(--hf-shadow-window);
+}
+
+.hf-window-titlebar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 13px var(--hf-space-md);
+  background: linear-gradient(
+    var(--hf-term-titlebar-top),
+    var(--hf-term-titlebar-bottom)
+  );
+  border-bottom: 1px solid var(--hf-rule-faint);
+  font-size: 12.5px;
+  color: rgba(220, 235, 240, 0.55);
+}
+
+.hf-window-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 26px clamp(18px, 3cqw, 34px) var(--hf-space-lg);
+  color: var(--hf-term-ink);
+}
+
+.hf-window-statusbar {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 7px var(--hf-space-md);
+  background: var(--hf-term-bar);
+  border-top: 1px solid var(--hf-rule-faint);
+  font-size: var(--hf-text-xs);
+  color: var(--hf-term-ink-dim);
+}
+
+/* The three macOS dots. Give each one a --hf-dot color. */
+.hf-dots {
+  display: flex;
+  gap: var(--hf-space-xs);
+}
+
+.hf-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--hf-dot, var(--hf-term-ink-dim));
+}
+
+/* The reading column of an article. */
+.hf-shell {
+  max-width: var(--hf-width-shell);
+  margin: 0 auto;
+  padding-block: var(--hf-pad-block);
+  padding-inline: var(--hf-pad-inline);
+}
+
+/* Small, uppercase, widely tracked: a meta bar, a kicker, a section label. */
+.hf-label {
+  font-size: var(--hf-text-xs);
+  letter-spacing: var(--hf-tracking-label);
+  text-transform: uppercase;
+  color: var(--hf-ed-ink-dim);
+}
+
+/* A heading. Bigger means tighter — pair with --hf-display-*. */
+.hf-heading {
+  margin: 0;
+  font-weight: var(--hf-weight-bold);
+  line-height: var(--hf-leading-tight);
+  letter-spacing: var(--hf-tracking-heading);
+  color: var(--hf-ed-ink-strong);
+}
+
+/* The one filled element in the system: an accent badge. */
+.hf-badge {
+  display: inline-block;
+  padding: 6px 10px;
+  border-radius: var(--hf-radius-md);
+  background: var(--hf-accent);
+  color: var(--hf-on-accent);
+  font-size: var(--hf-text-base);
+  font-weight: var(--hf-weight-bold);
+}
+
+/* An outlined tag — the quiet counterpart to the badge. */
+.hf-tag {
+  display: inline-block;
+  padding: 3px var(--hf-space-xs);
+  border: 1px solid var(--hf-rule);
+  border-radius: var(--hf-radius-pill);
+  font-size: var(--hf-text-2xs);
+  letter-spacing: var(--hf-tracking-label);
+  text-transform: uppercase;
+  color: var(--hf-ed-ink-dim);
+}
+
+.hf-rule {
+  border: 0;
+  border-top: 1px solid var(--hf-rule);
+}
+
+/* A shell prompt line. */
+.hf-prompt::before {
+  content: "❯ ";
+  color: var(--hf-prompt);
+}
+
+.hf-link {
+  color: var(--hf-accent);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+}
+
+.hf-link:hover {
+  border-bottom-color: currentColor;
+}
