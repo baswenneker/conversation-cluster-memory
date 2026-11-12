@@ -114,6 +114,14 @@ def transcript(turns: Sequence[Sequence[BaseMessage]]) -> str:
     return "\n".join(lines)
 
 
+def previous_text(summary: ClusterSummary) -> str:
+    """A stored summary as the summary model reads it: the text and its anchors."""
+    return (
+        f"{summary.text}\nSubject: {summary.subject}\nPeriod: {summary.period}\n"
+        f"Names: {', '.join(summary.names)}"
+    )
+
+
 def memory_text(summaries: Sequence[ClusterSummary]) -> str:
     """The content of the "Conversation memory" system message."""
     lines = [f"[{s.period}] {s.subject}: {s.text}" for s in summaries]

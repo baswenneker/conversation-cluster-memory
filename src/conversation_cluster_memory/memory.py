@@ -1,6 +1,7 @@
 """The public entry point: ConversationClusterMemory."""
 
 import asyncio
+import json
 import logging
 import os
 import threading
@@ -47,6 +48,7 @@ from conversation_cluster_memory.summaries import (
     SummaryReport,
     first_tokens,
     memory_text,
+    previous_text,
     summarize,
     token_counter,
     transcript,
@@ -237,13 +239,15 @@ class ConversationClusterMemory:
             if check is None:
                 with self._state:
                     check, self._check_due = self._check_due, False
+            # The recent turns counted here are not added again when this round summarizes them.
+            first_recent = self.archive.last_turn() - self.keep_recent_turns + 1
             report.window_tokens_before = self._tokens(self.window())
             try:
                 self._embed_turns_outside_window()
                 plan = self._cluster_batch() if check else []
                 done = self._summarize(self._pending(plan), report)
                 if plan or done:
-                    self._commit(plan, done, report)
+                    self._commit(plan, done, report, first_recent)
             except Exception as error:
                 # Nothing of this round is committed; the next round does it again.
                 logger.exception("compaction round failed; retrying in the next round")
@@ -293,7 +297,7 @@ class ConversationClusterMemory:
                 summary, usage = summarize(
                     self._model(),
                     transcript([self._clip(stored[t]) for t in inputs]),
-                    previous.text if previous is not None else None,
+                    previous_text(previous) if previous is not None else None,
                     self.archive.period(list(item.turns)),
                 )
             except Exception as error:
@@ -311,6 +315,7 @@ class ConversationClusterMemory:
         plan: list[tuple[int | None, list[int]]],
         done: list[tuple[_Pending, Summary]],
         report: CompactionReport,
+        first_recent: int,
     ) -> None:
         """Commit the round's clusters and summaries in one transaction, then report them."""
         ids = self.archive.commit_round(
@@ -327,7 +332,9 @@ class ConversationClusterMemory:
             shortened = {t: self._shorten(stored[t]) for t in item.turns}
             # The token counts measure the turns as the window would hold them.
             original = self._tokens([m for t in item.turns for m in shortened[t]])
-            report.window_tokens_before += self._tokens([m for t in item.new for m in shortened[t]])
+            report.window_tokens_before += self._tokens(
+                [m for t in item.new if t < first_recent for m in shortened[t]]
+            )
             summary_tokens = self._count(summary.text)
             cluster = item.cluster
             if cluster is None:
@@ -358,7 +365,15 @@ class ConversationClusterMemory:
         return token_counter(self.summary_model_name)(text)
 
     def _tokens(self, messages: Sequence[BaseMessage]) -> int:
-        return sum(self._count(message.text) for message in messages)
+        """The text of the messages plus the names and arguments of their tool calls."""
+        return sum(
+            self._count(message.text)
+            + sum(
+                self._count(call["name"] + json.dumps(call["args"]))
+                for call in getattr(message, "tool_calls", [])
+            )
+            for message in messages
+        )
 
     def _clip(self, messages: list[BaseMessage]) -> list[BaseMessage]:
         """The turn as the summary model reads it: a tool result above `max_tool_result_tokens`

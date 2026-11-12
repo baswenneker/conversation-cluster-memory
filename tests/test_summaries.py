@@ -87,7 +87,8 @@ def test_incremental_summarizes_the_old_summary_plus_the_new_turns(summary_model
     add(memory, *"a" * 5)  # turn 15 opens: turns 9-13 join the cluster
 
     request = summary_model.prompts[1][1].text
-    assert "Previous summary:\nsummary 1" in request
+    assert "Previous summary:\nsummary 1\nSubject: subject 1" in request
+    assert "Names: name 1" in request
     assert "a: question 9" in request and "a: question 13" in request
     assert "a: question 8" not in request
     summary = memory.clusters()[0].summary
