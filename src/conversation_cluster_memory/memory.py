@@ -4,6 +4,7 @@ import asyncio
 import logging
 import os
 import threading
+import time
 import uuid
 import weakref
 from collections.abc import Callable, Sequence
@@ -110,7 +111,6 @@ class ConversationClusterMemory:
             self.summary_model_name = (
                 summary_model or os.environ.get("OPENAI_SUMMARY_MODEL") or DEFAULT_SUMMARY_MODEL
             )
-        self._count = token_counter(self.summary_model_name)
         # One compaction round at a time per memory object, so a turn is embedded, clustered
         # and summarized once. Memory objects in other processes sharing the path are not
         # covered; a lock in SQLite would be the upgrade if that ever happens in practice.
@@ -178,10 +178,12 @@ class ConversationClusterMemory:
 
     def wait_idle(self, timeout: float | None = None) -> bool:
         """Wait until no round is running; False if `timeout` seconds passed first."""
+        deadline = None if timeout is None else time.monotonic() + timeout
         with self._state:
             if not self._state.wait_for(lambda: not self._running, timeout):
                 return False
-        if not self._round_lock.acquire(timeout=-1 if timeout is None else timeout):
+        left = -1 if deadline is None else max(0.0, deadline - time.monotonic())
+        if not self._round_lock.acquire(timeout=left):
             return False
         self._round_lock.release()
         return True
@@ -195,7 +197,9 @@ class ConversationClusterMemory:
                 with self._state:
                     # Deciding to stop and marking the worker idle happen under one lock, so
                     # an add_message in between cannot set `_again` for a worker that is gone.
-                    idle = not self._again
+                    idle = not (self._again and self._has_work())
+                    if idle:
+                        self._check_due = False  # a check that found too few turns
                     self._again = False
                     if idle:
                         self._running = False
@@ -255,11 +259,13 @@ class ConversationClusterMemory:
             previous = current.get(cluster) if self.resummarize_strategy == "incremental" else None
             inputs = new if previous is not None else list(turns)
             stored = self.archive.turns(min(turns), max(turns))
+            # The summary model reads tool results in full, so their facts reach the summary;
+            # the token counts measure the turns as the window would hold them.
             shortened = {t: self._shorten(stored[t]) for t in turns}
             try:
                 summary, usage = summarize(
                     self._model(),
-                    transcript([shortened[t] for t in inputs]),
+                    transcript([stored[t] for t in inputs]),
                     previous.text if previous is not None else None,
                     self.archive.period(list(turns)),
                 )
@@ -292,6 +298,11 @@ class ConversationClusterMemory:
                 model=self.summary_model_name, api_key=openai_api_key()
             )
         return self._summary_model
+
+    def _count(self, text: str) -> int:
+        # tiktoken loads its encoding on first use (a download if not cached), so a memory
+        # that never counts tokens never needs it.
+        return token_counter(self.summary_model_name)(text)
 
     def _tokens(self, messages: Sequence[BaseMessage]) -> int:
         return sum(self._count(message.text) for message in messages)
