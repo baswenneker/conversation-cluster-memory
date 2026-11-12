@@ -1,5 +1,6 @@
 from concurrent.futures import ThreadPoolExecutor
 
+import pytest
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 
 from conversation_cluster_memory import ConversationClusterMemory
@@ -61,3 +62,8 @@ def test_a_memory_can_be_used_from_another_thread(embeddings) -> None:
         pool.submit(memory.add_message, HumanMessage("from a worker")).result()
 
     assert [m.content for m in memory.window()] == ["from a worker"]
+
+
+def test_the_recent_window_holds_at_least_one_turn(embeddings) -> None:
+    with pytest.raises(ValueError, match="keep_recent_turns"):
+        ConversationClusterMemory("c1", embeddings=embeddings, keep_recent_turns=0)

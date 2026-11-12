@@ -1,6 +1,7 @@
 """The public entry point: ConversationClusterMemory."""
 
 import logging
+import threading
 import uuid
 import weakref
 from pathlib import Path
@@ -33,7 +34,14 @@ class ConversationClusterMemory:
         keep_recent_turns: int = 10,
         embedding_text: EmbeddingText = default_embedding_text,
     ) -> None:
+        if keep_recent_turns < 1:
+            # The newest turn is still open; embedding it would freeze an incomplete vector.
+            raise ValueError(f"keep_recent_turns must be at least 1; got {keep_recent_turns}")
         self.keep_recent_turns = keep_recent_turns
+        # One embedding pass at a time per memory object, so a turn is embedded once. Memory
+        # objects in other processes sharing the path are not covered; a lock in SQLite
+        # would be the upgrade if that ever happens in practice.
+        self._embed_lock = threading.Lock()
         self.embeddings = embeddings or default_embeddings()
         self.embedding_text = embedding_text
         name = collection_name(key)
@@ -54,7 +62,8 @@ class ConversationClusterMemory:
     def add_message(self, message: MessageLikeRepresentation) -> None:
         (converted,) = convert_to_messages([message])
         self.archive.add(converted)
-        self._embed_turns_outside_window()
+        with self._embed_lock:
+            self._embed_turns_outside_window()
 
     def _embed_turns_outside_window(self) -> None:
         """Embed every turn outside the recent window that has no vector yet (incl. backfill)."""
