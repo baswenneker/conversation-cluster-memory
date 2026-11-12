@@ -12,7 +12,9 @@ dependencies = [
     "langchain-core>=1.8.0",
     "langchain-huggingface>=1.2.3",
     "langchain-openai>=1.7.4",
+    "numpy>=2.5.4",
     "python-dotenv>=1.2.4",
+    "scipy>=1.18.1",
     "sentence-transformers>=6.3.0",
     "torch>=2.15.0",
 ]

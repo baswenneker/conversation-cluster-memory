@@ -31,3 +31,16 @@ class FakeEmbeddings(Embeddings):
 @pytest.fixture
 def embeddings() -> FakeEmbeddings:
     return FakeEmbeddings()
+
+
+class TopicEmbeddings(Embeddings):
+    """Embeds a text as the vector of its topic: the part before ':' (e.g. "a: question 1")."""
+
+    def __init__(self, topics: dict[str, list[float]]) -> None:
+        self.topics = topics
+
+    def embed_documents(self, texts: list[str]) -> list[list[float]]:
+        return [self.embed_query(t) for t in texts]
+
+    def embed_query(self, text: str) -> list[float]:
+        return self.topics[text.split(":")[0]]
