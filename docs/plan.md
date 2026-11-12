@@ -196,7 +196,7 @@ A run fails when the compressed score falls below 90% (configurable) of the unco
 
 A script replaces a marked block in the README with the latest run: date in UTC, models per role, scores per condition, token savings and cost. Older runs stay as files. A local sweep command compares parameter values and writes a table. DeepEval is not part of the factory gate.
 
-Where it runs: the evaluation runs locally, started by hand, with the API key from `.env`; the developer commits the updated README block. (The first plan ran it in CI on `main`; that was dropped before it was built.)
+Where it runs: the evaluation runs locally, started by hand, with the API key from `.env`; the developer commits the updated README block. (The first plan ran it in CI on `main`; issue #6 changed that to a local run before it was built.)
 
 ### Repository
 

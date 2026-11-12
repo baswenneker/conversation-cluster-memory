@@ -26,7 +26,7 @@ uv run pytest                                 # run the test suite
 uv run python -m conversation_cluster_memory  # run the demo on a built-in conversation, in memory
 ```
 
-Tests need no API key and no network. The default embedding model is downloaded once, the first time it is used. OpenAI components (OpenAI embeddings, the summary model, the evaluation judge) read `OPENAI_API_KEY` from a `.env` file; copy `.env.example` to `.env` and fill it in. Without a key, using such a component raises a clear error.
+The demo entry point and `.env.example` arrive with the first feature. Tests need no API key and no network. The default embedding model is downloaded once, the first time it is used. OpenAI components (OpenAI embeddings, the summary model, the evaluation judge) read `OPENAI_API_KEY` from a `.env` file; copy `.env.example` to `.env` and fill it in. Without a key, using such a component raises a clear error.
 
 ## Default embedding model
 
