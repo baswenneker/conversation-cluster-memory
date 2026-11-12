@@ -45,7 +45,7 @@ def openai_api_key() -> str:
 
 def embedding_model_id(embeddings: Embeddings) -> str:
     """The id recorded with every vector, so vectors of two models are never mixed."""
-    for attribute in ("model_name", "model"):
+    for attribute in ("model_name", "model", "model_id"):
         value = getattr(embeddings, attribute, None)
         if isinstance(value, str) and value:
             return value

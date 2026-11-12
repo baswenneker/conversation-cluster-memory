@@ -2,6 +2,7 @@
 
 import logging
 import uuid
+import weakref
 from pathlib import Path
 
 from langchain_core.embeddings import Embeddings
@@ -42,6 +43,7 @@ class ConversationClusterMemory:
             # name of its own: two in-memory memories for one key must not see each other.
             name = f"{name}-{uuid.uuid4().hex[:8]}"
             client = chroma_client(None)
+            weakref.finalize(self, client.delete_collection, name)
         else:
             directory = Path(path)
             directory.mkdir(parents=True, exist_ok=True)
