@@ -156,7 +156,8 @@ def replay(
         for q in conversation.questions:
             if q.turn > number:
                 continue
-            hits = [h for h in memory.retrieve(q.question) if h.cluster not in summarized]
+            # As window() does: summarized clusters are excluded before k and the budget apply.
+            hits = memory._search(q.question, memory.retrieval_k, exclude=summarized)
             windows = {
                 UNCOMPRESSED: uncompressed_window,
                 COMPRESSED: [*compressed_window, *(SystemMessage(hit_text(h)) for h in hits)],
@@ -212,7 +213,7 @@ def _metrics(judge: Any) -> list[Any]:
 def judge(cases: list[Case], judge_model: str) -> tuple[dict[str, dict[str, float]], float | None]:
     """DeepEval scores per condition (mean per metric) and the judging cost in dollars."""
     from deepeval import evaluate
-    from deepeval.evaluate.configs import AsyncConfig, DisplayConfig
+    from deepeval.evaluate.configs import AsyncConfig, DisplayConfig, ErrorConfig
     from deepeval.models import OpenAIModel
     from deepeval.test_case import LLMTestCase
 
@@ -232,6 +233,8 @@ def judge(cases: list[Case], judge_model: str) -> tuple[dict[str, dict[str, floa
         _metrics(model),
         async_config=AsyncConfig(max_concurrent=8),
         display_config=DisplayConfig(print_results=False, show_indicator=True),
+        # A metric the judge fails on comes back unscored instead of ending the paid run.
+        error_config=ErrorConfig(ignore_errors=True),
     )
     collected: dict[str, dict[str, list[float]]] = {UNCOMPRESSED: {}, COMPRESSED: {}}
     cost: float | None = 0.0
