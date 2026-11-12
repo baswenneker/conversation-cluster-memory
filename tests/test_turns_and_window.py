@@ -25,7 +25,9 @@ def test_window_keeps_the_last_turns_verbatim(embeddings) -> None:
 
 
 def test_a_turn_runs_until_the_next_user_message(embeddings) -> None:
-    memory = ConversationClusterMemory("c1", embeddings=embeddings, keep_recent_turns=1)
+    memory = ConversationClusterMemory(
+        "c1", embeddings=embeddings, keep_recent_turns=1, auto_compact="inline"
+    )
     memory.add_message(HumanMessage("old question"))
     memory.add_message(HumanMessage("new question"))
     memory.add_message(AIMessage("", tool_calls=[{"name": "lookup", "args": {}, "id": "t1"}]))
@@ -48,7 +50,9 @@ def test_keep_recent_turns_defaults_to_ten(embeddings) -> None:
 
 
 def test_system_messages_stay_in_the_window_and_are_never_embedded(embeddings) -> None:
-    memory = ConversationClusterMemory("c1", embeddings=embeddings, keep_recent_turns=1)
+    memory = ConversationClusterMemory(
+        "c1", embeddings=embeddings, keep_recent_turns=1, auto_compact="inline"
+    )
     memory.add_message(SystemMessage("You are helpful."))
     add_turns(memory, 3)
 

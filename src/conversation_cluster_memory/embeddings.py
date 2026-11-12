@@ -45,30 +45,43 @@ def openai_api_key() -> str:
     return key
 
 
-def embedding_model_id(embeddings: Embeddings) -> str:
-    """The id recorded with every vector, so vectors of two models are never mixed."""
+def embedding_model_id(model: object) -> str:
+    """The id recorded with every vector, so vectors of two models are never mixed.
+
+    Also names a chat model, for its tokenizer.
+    """
     for attribute in ("model_name", "model", "model_id"):
-        value = getattr(embeddings, attribute, None)
+        value = getattr(model, attribute, None)
         if isinstance(value, str) and value:
             return value
-    return f"{type(embeddings).__module__}.{type(embeddings).__qualname__}"
+    return f"{type(model).__module__}.{type(model).__qualname__}"
 
 
-def default_embedding_text(messages: Sequence[BaseMessage]) -> str:
-    """The user message, the assistant answers and, per tool result, only a header."""
+def tool_result_headers(messages: Sequence[BaseMessage]) -> dict[int, str]:
+    """Per tool result in the turn (by position), a header: the tool name and the size."""
     tool_names = {
         call["id"]: call["name"]
         for message in messages
         if isinstance(message, AIMessage)
         for call in message.tool_calls
     }
+    return {
+        i: f"Tool result {name}: {len(message.text)} characters"
+        for i, message in enumerate(messages)
+        if isinstance(message, ToolMessage)
+        for name in [message.name or tool_names.get(message.tool_call_id, "unknown tool")]
+    }
+
+
+def default_embedding_text(messages: Sequence[BaseMessage]) -> str:
+    """The user message, the assistant answers and, per tool result, only a header."""
+    headers = tool_result_headers(messages)
     lines = []
-    for message in messages:
+    for i, message in enumerate(messages):
         if isinstance(message, HumanMessage):
             lines.append(f"User: {message.text}")
-        elif isinstance(message, ToolMessage):
-            name = message.name or tool_names.get(message.tool_call_id, "unknown tool")
-            lines.append(f"Tool result {name}: {len(message.text)} characters")
+        elif i in headers:
+            lines.append(headers[i])
         elif isinstance(message, AIMessage) and message.text:
             lines.append(f"Assistant: {message.text}")
     return "\n".join(lines)
