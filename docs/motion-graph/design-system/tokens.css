@@ -1,0 +1,76 @@
+/* Generated from tokens.json. Do not edit by hand. */
+
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("jetbrains-mono-latin.woff2") format("woff2");
+  font-weight: 100 800;
+  font-style: normal;
+  font-display: block;
+}
+
+:root {
+  --hf-accent: #2ee6f6;
+  --hf-on-accent: #04181c;
+  --hf-prompt: #5be6a0;
+  --hf-danger: #ff6e6e;
+  --hf-rule: rgba(255, 255, 255, 0.1);
+  --hf-rule-faint: rgba(255, 255, 255, 0.06);
+  --hf-term-backdrop: #0bd3e6;
+  --hf-term-window: #0a0e11;
+  --hf-term-bar: #0d1115;
+  --hf-term-titlebar-top: #15191d;
+  --hf-term-titlebar-bottom: #0f1316;
+  --hf-term-ink: #d6e6ea;
+  --hf-term-ink-soft: #cfe2e7;
+  --hf-term-ink-dim: #7a8488;
+  --hf-term-close: #ff5f57;
+  --hf-term-minimize: #febc2e;
+  --hf-term-zoom: #28c840;
+  --hf-ed-surface: #07090b;
+  --hf-ed-surface-sunken: #05070a;
+  --hf-ed-ink: #c6dce1;
+  --hf-ed-ink-strong: #eafbfe;
+  --hf-ed-ink-dim: rgba(198, 220, 225, 0.62);
+  --hf-space-2xs: 4px;
+  --hf-space-xs: 8px;
+  --hf-space-sm: 12px;
+  --hf-space-md: 16px;
+  --hf-space-lg: 22px;
+  --hf-space-xl: 34px;
+  --hf-space-2xl: 56px;
+  --hf-radius-xs: 3px;
+  --hf-radius-sm: 4px;
+  --hf-radius-md: 8px;
+  --hf-radius-lg: 10px;
+  --hf-radius-xl: 13px;
+  --hf-radius-pill: 999px;
+  --hf-shadow-window: 0 1px 0 rgba(255, 255, 255, 0.07) inset, 0 40px 90px -20px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(0, 0, 0, 0.25);
+  --hf-text-2xs: 10px;
+  --hf-text-xs: 11px;
+  --hf-text-sm: 12px;
+  --hf-text-base: 13px;
+  --hf-text-md: 14px;
+  --hf-text-lg: 15px;
+  --hf-text-xl: 18px;
+  --hf-display-sm: clamp(17px, 2cqw, 24px);
+  --hf-display-md: clamp(22px, 2.6cqw, 32px);
+  --hf-display-lg: clamp(30px, 5.4cqw, 58px);
+  --hf-display-xl: clamp(72px, 22cqw, 148px);
+  --hf-weight-regular: 400;
+  --hf-weight-medium: 500;
+  --hf-weight-bold: 700;
+  --hf-weight-black: 800;
+  --hf-leading-display: 0.92;
+  --hf-leading-tight: 1.2;
+  --hf-leading-body: 1.75;
+  --hf-tracking-display: -0.06em;
+  --hf-tracking-heading: -0.02em;
+  --hf-tracking-body: -0.01em;
+  --hf-tracking-label: 0.16em;
+  --hf-tracking-label-wide: 0.22em;
+  --hf-pad-page: clamp(12px, 3.5cqw, 52px);
+  --hf-pad-block: clamp(28px, 5vw, 72px);
+  --hf-pad-inline: clamp(16px, 4vw, 56px);
+  --hf-width-window: 980px;
+  --hf-width-shell: 1180px;
+}
