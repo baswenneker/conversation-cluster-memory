@@ -324,8 +324,14 @@ class ConversationClusterMemory:
             members |= {c: turns for c, _, turns in self.archive.periods()}
             turns = sorted(t for c in oldest for t in members.get(c, ()))
             try:
+                # Half the limit, so the oldest period, which absorbs every later merge, leaves
+                # room for the newer summaries. The model may overrun it; a period that alone
+                # exceeds the limit stays, as merging needs two summaries.
                 summary, usage = merge_summaries(
-                    self._model(), [shown[c] for c in oldest], self.archive.period(turns)
+                    self._model(),
+                    [shown[c] for c in oldest],
+                    self.archive.period(turns),
+                    self.max_summary_tokens // 2,
                 )
             except Exception as error:
                 logger.exception("merging summaries of %s failed; retrying next round", oldest)

@@ -34,6 +34,8 @@ conversation later from it alone.
 - Keep names, identifiers, numbers, dates and decisions literally, exactly as written.
 - Invent nothing: leave out what the summaries do not say.
 - Keep every topic recognisable; drop repetition and wording, not facts.
+- Stay within the length budget given with the summaries: merges repeat over a long \
+conversation, so the summary must not grow with every topic.
 
 Return the summary text plus anchors: the subject, the period, and the names mentioned."""
 
@@ -99,11 +101,16 @@ def summarize(
 
 
 def merge_summaries(
-    model: BaseChatModel, summaries: Sequence[ClusterSummary], period: str
+    model: BaseChatModel, summaries: Sequence[ClusterSummary], period: str, budget: int
 ) -> tuple[Summary, dict[str, int]]:
-    """One period summary of the summaries; returns it and its usage."""
+    """One period summary of the summaries in at most about `budget` tokens; returns it and
+    its usage."""
     merged = "\n\n".join(previous_text(s) for s in summaries)
-    return _structured(model, MERGE_PROMPT, f"Period: {period}\n\nSummaries:\n{merged}")
+    return _structured(
+        model,
+        MERGE_PROMPT,
+        f"Period: {period}\n\nLength budget: at most {budget} tokens.\n\nSummaries:\n{merged}",
+    )
 
 
 def _structured(model: BaseChatModel, prompt: str, request: str) -> tuple[Summary, dict[str, int]]:
