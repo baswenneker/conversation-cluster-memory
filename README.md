@@ -14,7 +14,7 @@ The full design, every decision behind it, and a framework-agnostic specificatio
 
 ## Explainer video
 
-> **Placeholder.** A short explainer video will appear here. It will be recorded over the [motion graph](docs/motion-graph/index.html) (`docs/motion-graph/index.html`), a click-through page that shows embedding, clustering, summarization and retrieval step by step. Open that page locally in a browser to walk through the concept yourself.
+> **Placeholder.** A short explainer video will appear here. It will be recorded over the [motion graph](docs/motion-graph/index.html) (`docs/motion-graph/index.html`), a click-through page that shows embedding, clustering, summarization and retrieval step by step. The page arrives with its own feature; once it is there, open it locally in a browser to walk through the concept yourself.
 
 ## Installation
 
