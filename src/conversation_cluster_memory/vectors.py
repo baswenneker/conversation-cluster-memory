@@ -19,9 +19,9 @@ class VectorStore:
             metadata={"embedding_model": model_id},
             configuration={"hnsw": {"space": "cosine"}},
         )
-        self._check(self._collection.metadata.get("embedding_model"))
+        self.check(self._collection.metadata.get("embedding_model"))
 
-    def _check(self, model_id: object) -> None:
+    def check(self, model_id: object) -> None:
         if model_id != self.model_id:
             raise EmbeddingModelMismatchError(
                 f"this conversation's vectors were made with {model_id!r}, not "
@@ -55,7 +55,7 @@ class VectorStore:
 
     def query(self, vector: list[float], k: int, model_id: str) -> list[tuple[int, float]]:
         """The `k` nearest turns as (turn, cosine similarity), most similar first."""
-        self._check(model_id)
+        self.check(model_id)
         result = self._collection.query(query_embeddings=[vector], n_results=k)
         ids, distances = result["ids"][0], (result["distances"] or [[]])[0]
         return [(int(i), 1 - d) for i, d in zip(ids, distances, strict=True)]

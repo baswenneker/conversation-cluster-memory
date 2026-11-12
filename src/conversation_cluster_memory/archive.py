@@ -1,6 +1,7 @@
 """The archive: every message of one conversation, in SQLite."""
 
 import json
+import re
 import sqlite3
 import threading
 from datetime import UTC, datetime
@@ -57,6 +58,22 @@ CREATE TABLE IF NOT EXISTS summarized_turns (
     summary INTEGER NOT NULL REFERENCES summaries (id),
     PRIMARY KEY (conversation, turn)
 );
+-- Keyword search (BM25) over summaries and their anchors. The period anchor is left out: its
+-- dates would match any number in a query; a hit carries its time range anyway.
+CREATE VIRTUAL TABLE IF NOT EXISTS summaries_fts USING fts5 (
+    text, subject, names, conversation UNINDEXED
+);
+CREATE TRIGGER IF NOT EXISTS summaries_fts_insert AFTER INSERT ON summaries BEGIN
+    INSERT INTO summaries_fts (rowid, text, subject, names, conversation) VALUES (
+        new.id, new.text, json_extract(new.anchors, '$.subject'),
+        json_extract(new.anchors, '$.names'), new.conversation
+    );
+END;
+-- Summaries stored before keyword search existed.
+INSERT INTO summaries_fts (rowid, text, subject, names, conversation)
+    SELECT id, text, json_extract(anchors, '$.subject'), json_extract(anchors, '$.names'),
+        conversation
+    FROM summaries WHERE id NOT IN (SELECT rowid FROM summaries_fts);
 """
 
 
@@ -195,6 +212,11 @@ class MessageStore:
 
     def period(self, turns: list[int]) -> str:
         """The time span of these turns' messages, as "first to last" ISO times."""
+        first, last = self.time_range(turns)
+        return f"{first} to {last}"
+
+    def time_range(self, turns: list[int]) -> tuple[str, str]:
+        """The ISO times of the first and the last message of these turns."""
         marks = ",".join("?" * len(turns))
         with self._lock:
             first, last = self._db.execute(
@@ -202,7 +224,29 @@ class MessageStore:
                 f" WHERE conversation = ? AND turn IN ({marks})",
                 (self._conversation, *turns),
             ).fetchone()
-        return f"{first} to {last}"
+        return first, last
+
+    def keyword_search(self, query: str, min_score: float) -> list[tuple[int, float]]:
+        """Clusters whose current summary or anchors contain a word of the query, as
+        (cluster, BM25 score), best first; only scores of at least `min_score`.
+
+        Any word counts. BM25 statistics span the whole file, so scores are comparable within
+        one search, not across archives.
+        """
+        words = re.findall(r"\w+", query)
+        if not words:
+            return []
+        match = " OR ".join(f'"{word}"' for word in words)
+        with self._lock:
+            rows = self._db.execute(
+                "SELECT s.cluster, -bm25(summaries_fts) AS score FROM summaries_fts"
+                " JOIN summaries s ON s.id = summaries_fts.rowid"
+                " WHERE summaries_fts MATCH ? AND summaries_fts.conversation = ?"
+                " AND s.id IN (SELECT MAX(id) FROM summaries WHERE conversation = ?"
+                " GROUP BY cluster) ORDER BY score DESC, s.cluster",
+                (match, self._conversation, self._conversation),
+            ).fetchall()
+        return [(cluster, score) for cluster, score in rows if score >= min_score]
 
     def _save_summary(self, cluster: int, summary: Summary, turns: tuple[int, ...]) -> None:
         """Store the cluster's new summary and link its turns to it (inside a transaction)."""

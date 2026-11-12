@@ -41,14 +41,18 @@ def embeddings() -> FakeEmbeddings:
 class TopicEmbeddings(Embeddings):
     """Embeds a text as the vector of its topic: the part before ':' (e.g. "a: question 1")."""
 
-    def __init__(self, topics: dict[str, list[float]]) -> None:
+    def __init__(self, topics: dict[str, list[float]], default: list[float] | None = None) -> None:
         self.topics = topics
+        self.default = default  # for a text without a known topic; None raises KeyError
 
     def embed_documents(self, texts: list[str]) -> list[list[float]]:
         return [self.embed_query(t) for t in texts]
 
     def embed_query(self, text: str) -> list[float]:
-        return self.topics[text.split(":")[0]]
+        topic = text.split(":")[0]
+        if self.default is not None and topic not in self.topics:
+            return self.default
+        return self.topics[topic]
 
 
 class FakeSummaryModel(BaseChatModel):
@@ -59,6 +63,7 @@ class FakeSummaryModel(BaseChatModel):
     """
 
     text: str = "summary"
+    texts: list[str] = []  # when set, the n-th call returns texts[n - 1] instead of text
     fail_times: int = 0
     gate: Any = None
     prompts: list[list[BaseMessage]] = []
@@ -94,7 +99,7 @@ class FakeSummaryModel(BaseChatModel):
             self.active -= 1
         n = len(self.prompts)
         args = {
-            "text": f"{self.text} {n}",
+            "text": self.texts[n - 1] if self.texts else f"{self.text} {n}",
             "subject": f"subject {n}",
             "period": f"period {n}",
             "names": [f"name {n}"],
