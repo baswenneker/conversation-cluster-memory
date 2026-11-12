@@ -14,7 +14,7 @@ from pathlib import Path
 from conversation_cluster_memory.embeddings import MissingOpenAIKeyError, openai_api_key
 from conversation_cluster_memory.evaluation import conversations
 from conversation_cluster_memory.evaluation.report import (
-    MissingTokenMeasurementError,
+    EvaluationError,
     SweepRow,
     sweep_table,
     update_readme,
@@ -74,7 +74,7 @@ def _run(loaded: list[conversations.Conversation], args: argparse.Namespace) -> 
         result, cases = harness.run(
             loaded, harness.Settings(), args.min_ratio, results_file.as_posix(), now
         )
-    except MissingTokenMeasurementError as error:
+    except EvaluationError as error:
         print(f"ccm-eval: run failed: {error}", file=sys.stderr)
         return 1
     data = {**asdict(result), "passed": result.passed, "cases": [asdict(c) for c in cases]}

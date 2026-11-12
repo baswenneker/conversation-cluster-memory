@@ -22,6 +22,7 @@ from conversation_cluster_memory.evaluation.conversations import Conversation
 from conversation_cluster_memory.evaluation.report import (
     COMPRESSED,
     UNCOMPRESSED,
+    EvaluationError,
     RunResult,
     token_rounds,
 )
@@ -151,6 +152,9 @@ def replay(
             continue
         rounds += 1
         compressed_window = memory.window()
+        first_turn = next(
+            i for i, m in enumerate(compressed_window) if not isinstance(m, SystemMessage)
+        )
         uncompressed_window = uncompressed.window()
         summarized = {c.id for c in memory.clusters() if c.summary is not None}
         for q in conversation.questions:
@@ -160,7 +164,12 @@ def replay(
             hits = memory._search(q.question, memory.retrieval_k, exclude=summarized)
             windows = {
                 UNCOMPRESSED: uncompressed_window,
-                COMPRESSED: [*compressed_window, *(SystemMessage(hit_text(h)) for h in hits)],
+                # Hits go where window() puts them: after the system messages.
+                COMPRESSED: [
+                    *compressed_window[:first_turn],
+                    *(SystemMessage(hit_text(h)) for h in hits),
+                    *compressed_window[first_turn:],
+                ],
             }
             for condition, window in windows.items():
                 reply = answer_model.invoke(
@@ -247,6 +256,12 @@ def judge(cases: list[Case], judge_model: str) -> tuple[dict[str, dict[str, floa
                 cost = None
             elif cost is not None:
                 cost += metric.evaluation_cost
+    for condition, metrics in collected.items():
+        if not metrics:
+            raise EvaluationError(
+                f"the judge scored no answer in the {condition} condition; "
+                "check OPENAI_JUDGE_MODEL, the API key and the DeepEval output above"
+            )
     scores = {
         condition: {name: sum(v) / len(v) for name, v in metrics.items()}
         for condition, metrics in collected.items()

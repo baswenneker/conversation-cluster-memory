@@ -7,7 +7,11 @@ from datetime import datetime
 from conversation_cluster_memory.summaries import CompactionReport
 
 
-class MissingTokenMeasurementError(RuntimeError):
+class EvaluationError(RuntimeError):
+    """A run that cannot produce a result."""
+
+
+class MissingTokenMeasurementError(EvaluationError):
     """A run has no token measurement for a compaction round, so its savings are unknown."""
 
 
