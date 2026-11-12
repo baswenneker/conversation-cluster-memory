@@ -32,6 +32,8 @@ messages = memory.window()  # the last `keep_recent_turns` turns, verbatim
 - **Turns.** A turn is one user message plus everything until the next user message.
   `keep_recent_turns` (default 10) counts turns. A turn is embedded once, when it leaves the
   recent window; turns whose embedding failed are backfilled on the next `add_message`.
+- **System messages.** A system message (such as the system prompt) belongs to no turn: it is
+  never counted, embedded or summarized, and `window()` always returns it first.
 - **Embedded text.** By default the user message, the assistant answer and, per tool result,
   only a header with the tool name and size. Pass `embedding_text=` to replace it. Tool results
   are always stored in full.

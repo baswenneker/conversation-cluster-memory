@@ -9,7 +9,7 @@ from pathlib import Path
 from langchain_core.embeddings import Embeddings
 from langchain_core.messages import BaseMessage, MessageLikeRepresentation, convert_to_messages
 
-from conversation_cluster_memory.archive import MessageStore
+from conversation_cluster_memory.archive import SYSTEM_TURN, MessageStore
 from conversation_cluster_memory.embeddings import (
     EmbeddingText,
     default_embedding_text,
@@ -84,6 +84,8 @@ class ConversationClusterMemory:
             logger.exception("embedding turns %s failed; retrying on the next message", numbers)
 
     def window(self) -> list[BaseMessage]:
+        """System messages first, then the last `keep_recent_turns` turns verbatim."""
         last = self.archive.last_turn()
-        recent = self.archive.turns(last - self.keep_recent_turns + 1, last)
-        return [message for turn in sorted(recent) for message in recent[turn]]
+        system = self.archive.turns(SYSTEM_TURN, SYSTEM_TURN).get(SYSTEM_TURN, [])
+        recent = self.archive.turns(max(1, last - self.keep_recent_turns + 1), last)
+        return system + [message for turn in sorted(recent) for message in recent[turn]]

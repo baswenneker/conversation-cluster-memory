@@ -6,7 +6,16 @@ import threading
 from datetime import UTC, datetime
 from pathlib import Path
 
-from langchain_core.messages import BaseMessage, HumanMessage, message_to_dict, messages_from_dict
+from langchain_core.messages import (
+    BaseMessage,
+    HumanMessage,
+    SystemMessage,
+    message_to_dict,
+    messages_from_dict,
+)
+
+# System messages belong to no turn: they are never counted, embedded or summarized.
+SYSTEM_TURN = 0
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS messages (
@@ -56,8 +65,8 @@ class MessageStore:
     def add(self, message: BaseMessage) -> int:
         """Store the message and return its turn number.
 
-        A user message opens a new turn; any other message joins the current one. Messages that
-        arrive before the first user message belong to the first turn.
+        A user message opens a new turn; any other message joins the current one. A system
+        message gets SYSTEM_TURN; other messages before the first user message join turn 1.
         """
         with self._lock, self._db:
             # Take the write lock before reading, so another connection to the same file
@@ -66,6 +75,8 @@ class MessageStore:
             last = self._last_turn()
             opens = isinstance(message, HumanMessage) and self._has_user_message(last)
             turn = last + 1 if opens or last == 0 else last
+            if isinstance(message, SystemMessage):
+                turn = SYSTEM_TURN
             self._db.execute(
                 "INSERT INTO messages (conversation, turn, type, data, created_at)"
                 " VALUES (?, ?, ?, ?, ?)",

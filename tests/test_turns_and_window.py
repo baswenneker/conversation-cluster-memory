@@ -47,13 +47,18 @@ def test_keep_recent_turns_defaults_to_ten(embeddings) -> None:
     assert memory.window()[0].content == "question 3"
 
 
-def test_messages_before_the_first_user_message_join_the_first_turn(embeddings) -> None:
+def test_system_messages_stay_in_the_window_and_are_never_embedded(embeddings) -> None:
     memory = ConversationClusterMemory("c1", embeddings=embeddings, keep_recent_turns=1)
     memory.add_message(SystemMessage("You are helpful."))
-    add_turns(memory, 2)
+    add_turns(memory, 3)
 
-    assert memory.vectors.turns() == {1}
-    assert embeddings.texts == ["User: question 1\nAssistant: answer 1"]
+    assert [m.content for m in memory.window()] == [
+        "You are helpful.",
+        "question 3",
+        "answer 3",
+    ]
+    assert memory.vectors.turns() == {1, 2}
+    assert not any("helpful" in text for text in embeddings.texts)
 
 
 def test_a_memory_can_be_used_from_another_thread(embeddings) -> None:
