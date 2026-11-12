@@ -14,6 +14,8 @@ if [[ "${FACTORY_GATE_SCOPE:-all}" == "changed" && -s "${FACTORY_CHANGED_FILES:-
 fi
 
 uv sync --locked --quiet || exit 1
+# The motion graph test drives a headless browser; a no-op once it is installed.
+uv run --no-sync playwright install chromium-headless-shell >/dev/null || exit 1
 
 declare -A jobs
 uv run --no-sync ruff check . & jobs[ruff-check]=$!
