@@ -115,10 +115,20 @@ def memory_text(summaries: Sequence[ClusterSummary]) -> str:
 
 
 @functools.cache
-def token_counter(model: str) -> Callable[[str], int]:
-    """Counts tokens with the model's tiktoken tokenizer; o200k_base for an unknown model."""
+def _encoding(model: str) -> tiktoken.Encoding:
+    """The model's tiktoken tokenizer; o200k_base for an unknown model."""
     try:
-        encoding = tiktoken.encoding_for_model(model)
+        return tiktoken.encoding_for_model(model)
     except KeyError:
-        encoding = tiktoken.get_encoding("o200k_base")
+        return tiktoken.get_encoding("o200k_base")
+
+
+def token_counter(model: str) -> Callable[[str], int]:
+    encoding = _encoding(model)
     return lambda text: len(encoding.encode(text, disallowed_special=()))
+
+
+def first_tokens(model: str, text: str, limit: int) -> str:
+    """The start of the text, at most `limit` tokens of the model's tokenizer."""
+    encoding = _encoding(model)
+    return encoding.decode(encoding.encode(text, disallowed_special=())[:limit])

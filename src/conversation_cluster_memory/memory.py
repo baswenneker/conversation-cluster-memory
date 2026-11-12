@@ -44,6 +44,7 @@ from conversation_cluster_memory.summaries import (
     POOR_COMPRESSION_RATIO,
     CompactionReport,
     SummaryReport,
+    first_tokens,
     memory_text,
     summarize,
     token_counter,
@@ -259,13 +260,12 @@ class ConversationClusterMemory:
             previous = current.get(cluster) if self.resummarize_strategy == "incremental" else None
             inputs = new if previous is not None else list(turns)
             stored = self.archive.turns(min(turns), max(turns))
-            # The summary model reads tool results in full, so their facts reach the summary;
-            # the token counts measure the turns as the window would hold them.
+            # The token counts measure the turns as the window would hold them.
             shortened = {t: self._shorten(stored[t]) for t in turns}
             try:
                 summary, usage = summarize(
                     self._model(),
-                    transcript([stored[t] for t in inputs]),
+                    transcript([self._clip(stored[t]) for t in inputs]),
                     previous.text if previous is not None else None,
                     self.archive.period(list(turns)),
                 )
@@ -306,6 +306,28 @@ class ConversationClusterMemory:
 
     def _tokens(self, messages: Sequence[BaseMessage]) -> int:
         return sum(self._count(message.text) for message in messages)
+
+    def _clip(self, messages: list[BaseMessage]) -> list[BaseMessage]:
+        """The turn as the summary model reads it: a tool result above `max_tool_result_tokens`
+        becomes its header plus its first `max_tool_result_tokens` tokens.
+
+        So the facts at the start of a large result reach the summary, and one result never
+        outgrows the model's context. Facts further down are lost; summarizing a large result
+        in chunks is the upgrade if the evaluation shows that matters.
+        """
+        headers = tool_result_headers(messages)
+        limit = self.max_tool_result_tokens
+        return [
+            message.model_copy(
+                update={
+                    "content": f"{headers[i]}, first {limit} tokens:\n"
+                    + first_tokens(self.summary_model_name, message.text, limit)
+                }
+            )
+            if i in headers and self._count(message.text) > limit
+            else message
+            for i, message in enumerate(messages)
+        ]
 
     def _shorten(self, messages: list[BaseMessage]) -> list[BaseMessage]:
         """The turn with each tool result above `max_tool_result_tokens` replaced by its header."""
