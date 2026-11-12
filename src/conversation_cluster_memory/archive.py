@@ -230,8 +230,8 @@ class MessageStore:
         """Clusters whose current summary or anchors contain a word of the query, as
         (cluster, BM25 score), best first; only scores of at least `min_score`.
 
-        Any word counts. BM25 statistics span the whole file, so scores are comparable within
-        one search, not across archives.
+        BM25 statistics span every summary in the file, so scores are comparable within one
+        search, not across archives.
         """
         words = re.findall(r"\w+", query)
         if not words:

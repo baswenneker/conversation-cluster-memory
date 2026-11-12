@@ -55,7 +55,11 @@ from conversation_cluster_memory.summaries import (
     token_counter,
     transcript,
 )
-from conversation_cluster_memory.vectors import VectorStore, chroma_client
+from conversation_cluster_memory.vectors import (
+    EmbeddingModelMismatchError,
+    VectorStore,
+    chroma_client,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -98,7 +102,7 @@ class ConversationClusterMemory:
         retrieval_k: int = 3,
         retrieval_token_budget: int = 1500,
         retrieval_min_similarity: float = 0.5,
-        retrieval_min_keyword_score: float = 0.0,
+        retrieval_min_keyword_score: float = 0.01,
         retrieval_rewrite_query: bool = False,
     ) -> None:
         if keep_recent_turns < 1:
@@ -128,8 +132,9 @@ class ConversationClusterMemory:
         self.retrieval_k = retrieval_k
         self.retrieval_token_budget = retrieval_token_budget
         self.retrieval_min_similarity = retrieval_min_similarity
-        # Any matching word scores above 0. BM25 scores depend on how many clusters a
-        # conversation has; raise this when common words add noise.
+        # SQLite's BM25 scores a word found in half or more of the summaries at about 1e-6, so
+        # the default drops common words ("the", "about") and keeps rarer ones. The flip side:
+        # with fewer than three summaries no word is rare, and only the vector search finds.
         self.retrieval_min_keyword_score = retrieval_min_keyword_score
         self.retrieval_rewrite_query = retrieval_rewrite_query
         self.clustering = clustering or AgglomerativeClustering()
@@ -615,7 +620,14 @@ class ConversationClusterMemory:
         question = next((m.text for m in recent.get(last, []) if isinstance(m, HumanMessage)), "")
         if retrieval and question:
             # Clusters whose summary is in the memory message are in the window already.
-            hits = self._search(question, self.retrieval_k, exclude=set(summaries))
+            try:
+                hits = self._search(question, self.retrieval_k, exclude=set(summaries))
+            except EmbeddingModelMismatchError:
+                raise
+            except Exception:
+                # A model outage must not cost the application its window: send it without hits.
+                logger.exception("retrieval failed; the window has no retrieval hits")
+                hits = []
             system += [SystemMessage(hit_text(hit)) for hit in hits]
         return system + [
             message
