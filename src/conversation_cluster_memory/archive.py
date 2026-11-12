@@ -60,22 +60,21 @@ CREATE TABLE IF NOT EXISTS summarized_turns (
 );
 -- Keyword search (BM25) over each cluster's current summary and its anchors. Superseded
 -- summaries are removed, so a topic summarized many times does not make its own words common.
--- The period anchor is left out: its dates would match any number in a query; a hit carries
--- its time range anyway.
 CREATE VIRTUAL TABLE IF NOT EXISTS summaries_fts USING fts5 (
-    text, subject, names, conversation UNINDEXED, cluster UNINDEXED
+    text, subject, period, names, conversation UNINDEXED, cluster UNINDEXED
 );
 CREATE TRIGGER IF NOT EXISTS summaries_fts_insert AFTER INSERT ON summaries BEGIN
     DELETE FROM summaries_fts WHERE conversation = new.conversation AND cluster = new.cluster;
-    INSERT INTO summaries_fts (rowid, text, subject, names, conversation, cluster) VALUES (
+    INSERT INTO summaries_fts (rowid, text, subject, period, names, conversation, cluster) VALUES (
         new.id, new.text, json_extract(new.anchors, '$.subject'),
-        json_extract(new.anchors, '$.names'), new.conversation, new.cluster
+        json_extract(new.anchors, '$.period'), json_extract(new.anchors, '$.names'),
+        new.conversation, new.cluster
     );
 END;
 -- Summaries stored before keyword search existed.
-INSERT INTO summaries_fts (rowid, text, subject, names, conversation, cluster)
-    SELECT id, text, json_extract(anchors, '$.subject'), json_extract(anchors, '$.names'),
-        conversation, cluster
+INSERT INTO summaries_fts (rowid, text, subject, period, names, conversation, cluster)
+    SELECT id, text, json_extract(anchors, '$.subject'), json_extract(anchors, '$.period'),
+        json_extract(anchors, '$.names'), conversation, cluster
     FROM summaries
     WHERE id IN (SELECT MAX(id) FROM summaries GROUP BY conversation, cluster)
         AND id NOT IN (SELECT rowid FROM summaries_fts);

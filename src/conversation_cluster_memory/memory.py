@@ -541,14 +541,15 @@ class ConversationClusterMemory:
         """Hybrid search over the clusters not in `exclude`: vector and keyword hits, fused
         by rank, then cut at `k` and the token budget."""
         self.vectors.check(embedding_model_id(self.embeddings))
-        # Every cluster of this conversation, compared one by one; a nearest-neighbour query
-        # in Chroma is the upgrade when conversations reach thousands of clusters.
-        candidates = {c.id: c for c in self.clusters() if c.id not in exclude}
-        if not candidates or k < 1:
+        if k < 1 or not {c for c, _, _ in self.archive.clusters()} - exclude:
             return []
         if self.retrieval_rewrite_query:
             query = self._rewrite(query)
         vector = self.embeddings.embed_query(query)
+        # Read after the model calls, so a round that commits meanwhile is seen by both
+        # searches below. Every cluster is compared one by one; a nearest-neighbour query in
+        # Chroma is the upgrade when conversations reach thousands of clusters.
+        candidates = {c.id: c for c in self.clusters() if c.id not in exclude}
         summary_vectors = self.summary_vectors.get(
             [c.summary.id for c in candidates.values() if c.summary is not None]
         )
