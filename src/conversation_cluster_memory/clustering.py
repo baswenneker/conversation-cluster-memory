@@ -8,6 +8,8 @@ import numpy as np
 from scipy.cluster.hierarchy import fcluster, linkage
 from scipy.spatial.distance import squareform
 
+from conversation_cluster_memory.summaries import ClusterSummary
+
 # Float slack: a similarity of exactly the threshold reaches it, and near-equal ones tie.
 EPSILON = 1e-9
 
@@ -20,6 +22,7 @@ class Cluster:
     turns: tuple[int, ...]
     oldest_at: str  # ISO time of the oldest member turn's first message
     centroid: list[float]
+    summary: ClusterSummary | None = None  # None until the cluster is first summarized
 
 
 class ClusteringStrategy(Protocol):

@@ -1,11 +1,14 @@
 """Demo: run a built-in conversation through an in-memory ConversationClusterMemory.
 
 uv run python -m conversation_cluster_memory
+
+Summaries need the summary model, so OPENAI_API_KEY (environment or .env); without it the
+demo shows the clusters and says why no summary replaced them.
 """
 
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMessage
 
-from conversation_cluster_memory import ConversationClusterMemory, ConversationKey
+from conversation_cluster_memory import CompactionReport, ConversationClusterMemory, ConversationKey
 from conversation_cluster_memory.clustering import cosine
 
 CONVERSATION: list[BaseMessage] = [
@@ -55,10 +58,13 @@ def main() -> None:
         min_batch_turns=4,
         cluster_every_n_turns=4,
         similarity_threshold=0.5,
+        auto_compact="inline",
+        on_compact=report,
     )
     print(f"Embedding model: {memory.vectors.model_id}")
     print(f"Recent window: {memory.keep_recent_turns} turns")
-    print(f"Similarity threshold: {memory.similarity_threshold}\n")
+    print(f"Similarity threshold: {memory.similarity_threshold}")
+    print(f"Summary model: {memory.summary_model_name}\n")
     for message in CONVERSATION:
         memory.add_message(message)
 
@@ -76,6 +82,23 @@ def main() -> None:
         for number in cluster.turns:
             similarity = cosine(vectors[number], cluster.centroid)
             print(f"  turn {number:2}  {similarity:.2f}  {turns[number][0].text}")
+        if cluster.summary is not None:
+            print(f"  summary [{cluster.summary.subject}]: {cluster.summary.text}")
+
+    print("\nThe window: summaries replace their clusters' turns, the recent turns stay verbatim.")
+    for message in window:
+        print(f"  {message.type:6}  {message.text[:200]}")
+
+
+def report(round: CompactionReport) -> None:
+    if round.summaries or round.errors:
+        print(
+            f"compaction round: clustered {round.clustered_turns}, "
+            f"{len(round.summaries)} summaries, window {round.window_tokens_before} -> "
+            f"{round.window_tokens_after} tokens"
+        )
+    for error in round.errors:
+        print(f"  no summary: {error}")
 
 
 if __name__ == "__main__":

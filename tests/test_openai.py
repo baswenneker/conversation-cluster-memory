@@ -40,3 +40,15 @@ def test_openai_embeddings_are_selectable(monkeypatch) -> None:
     memory = ConversationClusterMemory("c1", embeddings=openai_embeddings())
 
     assert memory.vectors.model_id == "text-embedding-3-small"
+
+
+def test_the_summary_model_defaults_to_luna_and_is_overridable(monkeypatch, embeddings) -> None:
+    monkeypatch.delenv("OPENAI_SUMMARY_MODEL", raising=False)
+    assert ConversationClusterMemory("c1", embeddings=embeddings).summary_model_name == (
+        "gpt-6.1-luna"
+    )
+
+    monkeypatch.setenv("OPENAI_SUMMARY_MODEL", "from-env")
+    assert ConversationClusterMemory("c1", embeddings=embeddings).summary_model_name == "from-env"
+    memory = ConversationClusterMemory("c1", embeddings=embeddings, summary_model="by-argument")
+    assert memory.summary_model_name == "by-argument"

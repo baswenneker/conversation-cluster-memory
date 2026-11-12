@@ -14,6 +14,8 @@ from langchain_core.messages import (
     messages_from_dict,
 )
 
+from conversation_cluster_memory.summaries import ClusterSummary, Summary
+
 # System messages belong to no turn: they are never counted, embedded or summarized.
 SYSTEM_TURN = 0
 
@@ -37,6 +39,22 @@ CREATE TABLE IF NOT EXISTS cluster_turns (
     conversation TEXT NOT NULL,
     turn INTEGER NOT NULL,
     cluster INTEGER NOT NULL REFERENCES clusters (id),
+    PRIMARY KEY (conversation, turn)
+);
+-- Every summary ever made; a cluster's current summary is its newest.
+CREATE TABLE IF NOT EXISTS summaries (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    conversation TEXT NOT NULL,
+    cluster INTEGER NOT NULL REFERENCES clusters (id),
+    text TEXT NOT NULL,
+    anchors TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+-- An archived turn that is summarized links to the summary that covers it now.
+CREATE TABLE IF NOT EXISTS summarized_turns (
+    conversation TEXT NOT NULL,
+    turn INTEGER NOT NULL,
+    summary INTEGER NOT NULL REFERENCES summaries (id),
     PRIMARY KEY (conversation, turn)
 );
 """
@@ -136,10 +154,16 @@ class MessageStore:
             grouped.setdefault(cluster, (oldest_at, []))[1].append(turn)
         return [(c, oldest_at, tuple(turns)) for c, (oldest_at, turns) in grouped.items()]
 
-    def assign(self, groups: list[tuple[int | None, list[int]]]) -> list[int]:
-        """Add each group of turns to its cluster (None: a new one), in one transaction.
+    def commit_round(
+        self,
+        groups: list[tuple[int | None, list[int]]],
+        summaries: list[tuple[int | None, int | None, Summary, tuple[int, ...]]],
+    ) -> list[int]:
+        """Commit a round in one transaction: add each group of turns to its cluster (None: a
+        new one), then store each summary with the turns it covers.
 
-        Returns the cluster id per group.
+        A summary names its committed cluster, or else (cluster None) the index of the group
+        that creates its cluster. Returns the cluster id per group.
         """
         ids = []
         with self._lock, self._db:
@@ -162,4 +186,64 @@ class MessageStore:
                     (self._conversation, cluster, cluster),
                 )
                 ids.append(cluster)
+            for cluster, group, summary, turns in summaries:
+                if cluster is None:
+                    assert group is not None
+                    cluster = ids[group]
+                self._save_summary(cluster, summary, turns)
         return ids
+
+    def period(self, turns: list[int]) -> str:
+        """The time span of these turns' messages, as "first to last" ISO times."""
+        marks = ",".join("?" * len(turns))
+        with self._lock:
+            first, last = self._db.execute(
+                "SELECT MIN(created_at), MAX(created_at) FROM messages"
+                f" WHERE conversation = ? AND turn IN ({marks})",
+                (self._conversation, *turns),
+            ).fetchone()
+        return f"{first} to {last}"
+
+    def _save_summary(self, cluster: int, summary: Summary, turns: tuple[int, ...]) -> None:
+        """Store the cluster's new summary and link its turns to it (inside a transaction)."""
+        anchors = {"subject": summary.subject, "period": summary.period, "names": summary.names}
+        summary_id = self._db.execute(
+            "INSERT INTO summaries (conversation, cluster, text, anchors, created_at)"
+            " VALUES (?, ?, ?, ?, ?)",
+            (
+                self._conversation,
+                cluster,
+                summary.text,
+                json.dumps(anchors),
+                datetime.now(UTC).isoformat(),
+            ),
+        ).lastrowid
+        self._db.executemany(
+            "INSERT OR REPLACE INTO summarized_turns (conversation, turn, summary)"
+            " VALUES (?, ?, ?)",
+            [(self._conversation, turn, summary_id) for turn in turns],
+        )
+
+    def summaries(self) -> dict[int, ClusterSummary]:
+        """Each summarized cluster's current summary, in time order (by oldest member)."""
+        with self._lock:
+            rows = self._db.execute(
+                "SELECT s.cluster, s.id, s.text, s.anchors FROM summaries s"
+                " JOIN clusters c ON c.id = s.cluster"
+                " WHERE s.id IN (SELECT MAX(id) FROM summaries WHERE conversation = ?"
+                " GROUP BY cluster) ORDER BY c.oldest_at, c.id",
+                (self._conversation,),
+            ).fetchall()
+        return {
+            cluster: ClusterSummary(summary_id, text, **json.loads(anchors))
+            for cluster, summary_id, text, anchors in rows
+        }
+
+    def summarized_turns(self) -> dict[int, int]:
+        """Each summarized turn with the id of the summary that covers it."""
+        with self._lock:
+            rows = self._db.execute(
+                "SELECT turn, summary FROM summarized_turns WHERE conversation = ?",
+                (self._conversation,),
+            ).fetchall()
+        return dict(rows)

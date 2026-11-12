@@ -5,7 +5,7 @@ from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 
 from conversation_cluster_memory import ConversationClusterMemory
 from conversation_cluster_memory.clustering import AgglomerativeClustering
-from tests.conftest import TopicEmbeddings
+from tests.conftest import FakeSummaryModel, TopicEmbeddings
 
 TOPICS = {"a": [1.0, 0.0, 0.0], "b": [0.0, 1.0, 0.0], "c": [0.0, 0.0, 1.0]}
 
@@ -22,6 +22,8 @@ def memory_for(
         embeddings=TopicEmbeddings(topics),
         embedding_text=question,
         keep_recent_turns=keep_recent_turns,
+        summary_model=FakeSummaryModel(),
+        auto_compact="inline",
         **options,
     )
 
