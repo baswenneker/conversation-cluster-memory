@@ -16,6 +16,7 @@ from langchain_core.messages import (
 
 from conversation_cluster_memory.archive import SYSTEM_TURN, MessageStore
 from conversation_cluster_memory.clustering import (
+    EPSILON,
     AgglomerativeClustering,
     Cluster,
     ClusteringStrategy,
@@ -94,7 +95,11 @@ class ConversationClusterMemory:
         with self._lock:
             self._embed_turns_outside_window()
             if isinstance(converted, HumanMessage) and turn % self.cluster_every_n_turns == 0:
-                self._cluster_batch()
+                try:
+                    self._cluster_batch()
+                except Exception:
+                    # The message is stored; unclustered turns wait for the next check.
+                    logger.exception("clustering failed; retrying at the next check")
 
     def clusters(self) -> list[Cluster]:
         """Every cluster, oldest first."""
@@ -114,6 +119,9 @@ class ConversationClusterMemory:
 
         Only turns outside the recent window have a vector, so the batch lies outside it.
         """
+        stored = {c: turns for c, _, turns in self.archive.clusters()}
+        if missing := stored.keys() - self.centroids.turns():  # write failed after a commit
+            self.centroids.add({c: self._centroid(stored[c]) for c in missing})
         batch = sorted(self.vectors.turns() - self.archive.clustered_turns())
         if len(batch) < self.min_batch_turns:
             return
@@ -125,14 +133,14 @@ class ConversationClusterMemory:
         plan: list[tuple[int | None, list[int]]] = []
         for group in groups:
             batch_centroid = centroid([vectors[t] for t in group])
-            best, best_similarity = None, self.similarity_threshold
+            best, best_similarity = None, self.similarity_threshold - EPSILON
             for cluster in existing:
                 similarity = cosine(batch_centroid, cluster.centroid)
-                if similarity > best_similarity or (best is None and similarity == best_similarity):
+                if similarity >= best_similarity + (EPSILON if best is not None else 0):
                     best, best_similarity = cluster.id, similarity
             plan.append((best, group))
         ids = self.archive.assign(plan)
-        # Written after the SQLite commit; a missing centroid is recomputed from its turns.
+        # Written after the SQLite commit; a missing centroid is backfilled by the next check.
         members = {cluster: turns for cluster, _, turns in self.archive.clusters()}
         self.centroids.add({c: self._centroid(members[c]) for c in set(ids)})
 

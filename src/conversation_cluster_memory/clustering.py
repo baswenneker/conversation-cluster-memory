@@ -8,8 +8,8 @@ import numpy as np
 from scipy.cluster.hierarchy import fcluster, linkage
 from scipy.spatial.distance import squareform
 
-# Float slack so a similarity of exactly the threshold still counts as reaching it.
-_EPSILON = 1e-9
+# Float slack: a similarity of exactly the threshold reaches it, and near-equal ones tie.
+EPSILON = 1e-9
 
 
 @dataclass(frozen=True)
@@ -55,7 +55,7 @@ class AgglomerativeClustering:
         distance = np.clip(1 - (similarity + self.proximity_bonus / gap), 0, None)
         np.fill_diagonal(distance, 0)
         tree = linkage(squareform(distance, checks=False), method="average")
-        labels = fcluster(tree, t=1 - threshold + _EPSILON, criterion="distance")
+        labels = fcluster(tree, t=1 - threshold + EPSILON, criterion="distance")
         groups: dict[int, list[int]] = {}
         for turn, label in sorted(zip(turns, labels, strict=True)):
             groups.setdefault(int(label), []).append(turn)
