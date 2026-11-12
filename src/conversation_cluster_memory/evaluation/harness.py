@@ -156,12 +156,13 @@ def replay(
             i for i, m in enumerate(compressed_window) if not isinstance(m, SystemMessage)
         )
         uncompressed_window = uncompressed.window()
-        summarized = {c.id for c in memory.clusters() if c.summary is not None}
+        shown = set(memory.archive.summaries(in_window=True))
         for q in conversation.questions:
             if q.turn > number:
                 continue
-            # As window() does: summarized clusters are excluded before k and the budget apply.
-            hits = memory._search(q.question, memory.retrieval_k, exclude=summarized)
+            # As window() does: clusters and periods whose summary the window shows are
+            # excluded before k and the budget apply.
+            hits = memory._search(q.question, memory.retrieval_k, exclude=shown)
             windows = {
                 UNCOMPRESSED: uncompressed_window,
                 # Hits go where window() puts them: after the system messages.

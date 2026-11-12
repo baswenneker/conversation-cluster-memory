@@ -1,3 +1,4 @@
+import json
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -158,3 +159,43 @@ def test_after_every_compaction_round_the_same_questions_are_asked_in_both_condi
     for r in range(1, len(rounds) + 1):
         assert asked[(r, UNCOMPRESSED)] == asked[(r, COMPRESSED)]
         assert asked[(r, COMPRESSED)]
+
+
+def test_the_cost_command_extrapolates_a_year_from_the_latest_results(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)  # no model is called
+    rounds = [{"before": 1000, "after": 400}]
+    older = {"tokens": {"short": rounds}, "cost": {"embedding": 0.0, "summary": 9.0}}
+    # 31 rounds over the 310 committed turns at $0.31: $0.01 per round, a round per 10 turns.
+    latest = {
+        "models": {"summary": "sum-y"},
+        "tokens": {"short": rounds * 3, "long": rounds * 20, "switching": rounds * 8},
+        "cost": {"embedding": 0.0, "summary": 0.31, "answer": 5.0, "judge": 7.0},
+    }
+    (tmp_path / "2026-11-01T100000Z.json").write_text(json.dumps(older))
+    (tmp_path / "2026-11-12T140300Z.json").write_text(json.dumps(latest))
+
+    code = main(
+        [
+            "--results",
+            str(tmp_path),
+            "--conversations",
+            str(CONVERSATIONS_DIR),
+            "cost",
+            "--turns-per-week",
+            "100",
+        ]
+    )
+
+    out = capsys.readouterr().out
+    assert code == 0
+    assert "2026-11-12T140300Z.json" in out
+    assert "$0.0100 per round" in out
+    assert "520 compaction rounds" in out
+    assert "$5.20 per conversation per year" in out
+
+
+def test_the_cost_command_without_results_fails_with_a_clear_error(tmp_path: Path, capsys) -> None:
+    assert main(["--results", str(tmp_path), "cost", "--turns-per-week", "100"]) == 1
+    assert "ccm-eval run" in capsys.readouterr().err

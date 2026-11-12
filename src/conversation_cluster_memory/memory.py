@@ -23,7 +23,12 @@ from langchain_core.messages import (
 )
 from langchain_core.tools import BaseTool, StructuredTool
 
-from conversation_cluster_memory.archive import SYSTEM_TURN, MessageStore
+from conversation_cluster_memory.archive import (
+    SYSTEM_TURN,
+    MessageStore,
+    delete_conversations,
+    stored_conversations,
+)
 from conversation_cluster_memory.clustering import (
     EPSILON,
     AgglomerativeClustering,
@@ -40,7 +45,7 @@ from conversation_cluster_memory.embeddings import (
     openai_api_key,
     tool_result_headers,
 )
-from conversation_cluster_memory.keys import KeyLike, collection_name, storage_id
+from conversation_cluster_memory.keys import KeyLike, collection_name, key_parts, storage_id
 from conversation_cluster_memory.retrieval import REWRITE_PROMPT, RetrievalHit, fuse, hit_text
 from conversation_cluster_memory.summaries import (
     DEFAULT_SUMMARY_MODEL,
@@ -50,6 +55,7 @@ from conversation_cluster_memory.summaries import (
     SummaryReport,
     first_tokens,
     memory_text,
+    merge_summaries,
     previous_text,
     summarize,
     token_counter,
@@ -59,6 +65,7 @@ from conversation_cluster_memory.vectors import (
     EmbeddingModelMismatchError,
     VectorStore,
     chroma_client,
+    delete_collections,
 )
 
 logger = logging.getLogger(__name__)
@@ -104,6 +111,7 @@ class ConversationClusterMemory:
         retrieval_min_similarity: float = 0.5,
         retrieval_min_keyword_score: float = 0.01,
         retrieval_rewrite_query: bool = False,
+        max_summary_tokens: int = 3000,
     ) -> None:
         if keep_recent_turns < 1:
             # The newest turn is still open; embedding it would freeze an incomplete vector.
@@ -137,6 +145,7 @@ class ConversationClusterMemory:
         # with fewer than three summaries no word is rare, and only the vector search finds.
         self.retrieval_min_keyword_score = retrieval_min_keyword_score
         self.retrieval_rewrite_query = retrieval_rewrite_query
+        self.max_summary_tokens = max_summary_tokens
         self.clustering = clustering or AgglomerativeClustering()
         self.resummarize_strategy = resummarize_strategy
         self.max_tool_result_tokens = max_tool_result_tokens
@@ -164,7 +173,7 @@ class ConversationClusterMemory:
         self._check_due = True
         self.embeddings = embeddings or default_embeddings()
         self.embedding_text = embedding_text
-        name = collection_name(key)
+        name = collection_name(storage_id(key))
         if path is None:
             self.archive = MessageStore(None, storage_id(key))
             # In-process Chroma clients share their collections, so an in-memory memory gets a
@@ -184,6 +193,35 @@ class ConversationClusterMemory:
         self.centroids = VectorStore(client, f"{name}-centroids", model_id)
         # Keyed by summary id, so a cluster's newer summary never reuses an older one's vector.
         self.summary_vectors = VectorStore(client, f"{name}-summaries", model_id)
+
+    @staticmethod
+    def delete_conversation(path: str | Path, key: KeyLike) -> int:
+        """Remove this conversation's records and vectors from the memory at `path`.
+
+        Returns the number of conversations removed (0 or 1). Memory objects still open for
+        it must not be used afterwards.
+        """
+        parts = key_parts(key)
+        return _delete(Path(path), lambda stored: stored == parts)
+
+    @staticmethod
+    def delete_user(path: str | Path, user: str, tenant: str | None = None) -> int:
+        """Remove every conversation whose key sets this user (and, when given, this tenant).
+
+        A key that sets no user is never matched. Returns the number of conversations removed.
+        """
+        return _delete(
+            Path(path),
+            lambda stored: (
+                f"user={user}" in stored and (tenant is None or f"tenant={tenant}" in stored)
+            ),
+        )
+
+    @staticmethod
+    def delete_tenant(path: str | Path, tenant: str) -> int:
+        """Remove every conversation whose key sets this tenant; a key without one is never
+        matched. Returns the number of conversations removed."""
+        return _delete(Path(path), lambda stored: f"tenant={tenant}" in stored)
 
     def add_message(self, message: MessageLikeRepresentation) -> None:
         """Store the message and, unless `auto_compact` is off, start a round if there is work.
@@ -258,7 +296,52 @@ class ConversationClusterMemory:
             return True
         if self._check_due and self._unclustered_count() >= self.min_batch_turns:
             return True
-        return bool(self._pending([]))
+        return bool(self._pending([])) or self._summaries_over_limit()
+
+    def _summaries_over_limit(self) -> bool:
+        """Whether the window's summaries exceed `max_summary_tokens` and two can merge."""
+        shown = list(self.archive.summaries(in_window=True).values())
+        return len(shown) > 1 and self._count(memory_text(shown)) > self.max_summary_tokens
+
+    def _merge_oldest_summaries(self, report: CompactionReport) -> None:
+        """While the window's summaries exceed `max_summary_tokens`, merge the oldest ones that
+        cover the excess (at least two) into a period summary. The merged summaries stay in the
+        archive, and retrieval still finds them.
+
+        Each merge shows at least one summary fewer, so the loop ends; a merge that fails is
+        retried in the next round.
+        """
+        while self._summaries_over_limit():
+            shown = self.archive.summaries(in_window=True)
+            excess = self._count(memory_text(list(shown.values()))) - self.max_summary_tokens
+            oldest: list[int] = []
+            for cluster, summary in shown.items():
+                oldest.append(cluster)
+                excess -= self._count(memory_text([summary]))
+                if excess <= 0 and len(oldest) > 1:
+                    break
+            members = {c: turns for c, _, turns in self.archive.clusters()}
+            members |= {c: turns for c, _, turns in self.archive.periods()}
+            turns = sorted(t for c in oldest for t in members.get(c, ()))
+            try:
+                # Half the limit, so the oldest period, which absorbs every later merge, leaves
+                # room for the newer summaries. The model may overrun it; a period that alone
+                # exceeds the limit stays, as merging needs two summaries.
+                summary, usage = merge_summaries(
+                    self._model(),
+                    [shown[c] for c in oldest],
+                    self.archive.period(turns),
+                    self.max_summary_tokens // 2,
+                )
+            except Exception as error:
+                logger.exception("merging summaries of %s failed; retrying next round", oldest)
+                report.errors.append(f"merging clusters {oldest}: {error!r}")
+                return
+            report.input_tokens += usage.get("input_tokens", 0)
+            report.output_tokens += usage.get("output_tokens", 0)
+            period = self.archive.merge(oldest, summary)
+            if turns:  # its centroid, for retrieval while its summary has no vector yet
+                self.centroids.add({period: self._centroid(turns)})
 
     def _compact(self, check: bool | None) -> CompactionReport:
         """One round: embed, cluster when a check is due (or `check`), summarize, report."""
@@ -277,6 +360,7 @@ class ConversationClusterMemory:
                 done = self._summarize(self._pending(plan), report)
                 if plan or done:
                     self._commit(plan, done, report, first_recent)
+                self._merge_oldest_summaries(report)
             except Exception as error:
                 # Nothing of this round is committed; the next round does it again.
                 logger.exception("compaction round failed; retrying in the next round")
@@ -438,8 +522,10 @@ class ConversationClusterMemory:
         ]
 
     def clusters(self) -> list[Cluster]:
-        """Every cluster, oldest first."""
-        stored = self.archive.clusters()
+        """Every level-1 cluster, oldest first."""
+        return self._as_clusters(self.archive.clusters())
+
+    def _as_clusters(self, stored: list[tuple[int, str, tuple[int, ...]]]) -> list[Cluster]:
         centroids = self.centroids.get([cluster for cluster, _, _ in stored])
         summaries = self.archive.summaries()
         return [
@@ -518,6 +604,36 @@ class ConversationClusterMemory:
             # Until then retrieval falls back to the cluster's centroid.
             logger.exception("embedding summaries %s failed; retrying next round", list(missing))
 
+    def reindex(self, new_embeddings: Embeddings) -> None:
+        """Re-embed the archive with `new_embeddings` and use them from now on: every turn
+        outside the recent window, every current summary, and from those the centroids.
+
+        Every new vector is made before an old one is removed, so a failing model changes
+        nothing. A crash after that leaves empty collections, which open with either model and
+        which the next round backfills.
+        """
+        with self._round_lock:
+            last_outside = self.archive.last_turn() - self.keep_recent_turns
+            # Clustered turns too: they may lie inside a recent window made larger since.
+            wanted = set(range(1, last_outside + 1)) | self.archive.clustered_turns()
+            turns = self.archive.turns(1, max(wanted)) if wanted else {}
+            numbers = sorted(wanted & turns.keys())
+            summaries = {s.id: s.text for s in self.archive.summaries().values()}
+            texts = [self.embedding_text(turns[n]) for n in numbers] + list(summaries.values())
+            made = new_embeddings.embed_documents(texts) if texts else []
+            turn_vectors = dict(zip(numbers, made[: len(numbers)], strict=True))
+            centroids = {
+                cluster: centroid([turn_vectors[t] for t in members])
+                for cluster, _, members in self.archive.clusters() + self.archive.periods()
+            }
+            model_id = embedding_model_id(new_embeddings)
+            for store in (self.vectors, self.centroids, self.summary_vectors):
+                store.reset(model_id)
+            self.embeddings = new_embeddings
+            self.vectors.add(turn_vectors)
+            self.summary_vectors.add(dict(zip(summaries, made[len(numbers) :], strict=True)))
+            self.centroids.add(centroids)
+
     def retrieve(self, query: str, k: int | None = None) -> list[RetrievalHit]:
         """The clusters of this conversation that match the query, best first: at most `k`
         (default `retrieval_k`) and at most `retrieval_token_budget` tokens together."""
@@ -549,7 +665,12 @@ class ConversationClusterMemory:
         # Read after the model calls, so a round that commits meanwhile is seen by both
         # searches below. Every cluster is compared one by one; a nearest-neighbour query in
         # Chroma is the upgrade when conversations reach thousands of clusters.
-        candidates = {c.id: c for c in self.clusters() if c.id not in exclude}
+        # Both levels: a period's summary and the summaries it merged.
+        candidates = {
+            c.id: c
+            for c in [*self.clusters(), *self._as_clusters(self.archive.periods())]
+            if c.id not in exclude
+        }
         summary_vectors = self.summary_vectors.get(
             [c.summary.id for c in candidates.values() if c.summary is not None]
         )
@@ -614,7 +735,7 @@ class ConversationClusterMemory:
         last = self.archive.last_turn()
         system = self.archive.turns(SYSTEM_TURN, SYSTEM_TURN).get(SYSTEM_TURN, [])
         # One query, and a round commits its clusters and summaries in one transaction.
-        summaries = self.archive.summaries()
+        summaries = self.archive.summaries(in_window=True)
         if summaries:
             system = [*system, SystemMessage(memory_text(list(summaries.values())))]
         recent = self.archive.turns(max(1, last - self.keep_recent_turns + 1), last)
@@ -635,3 +756,28 @@ class ConversationClusterMemory:
             for turn in sorted(recent)
             for message in (recent[turn] if turn == last else self._shorten(recent[turn]))
         ]
+
+
+def _delete(directory: Path, matches: Callable[[tuple[str, ...]], bool]) -> int:
+    """Remove the conversations at `directory` whose key parts match: vectors first, then the
+    records, so a failure halfway leaves records that find the rest on a retry.
+
+    A conversation is found through its messages: one never given a message has at most empty
+    collections, which stay.
+    """
+    archive = directory / "archive.sqlite3"
+    if not archive.exists():
+        return 0
+    found = [c for c in stored_conversations(archive) if matches(tuple(json.loads(c)))]
+    if not found:
+        return 0
+    delete_collections(
+        str(directory / "chroma"),
+        [
+            f"{collection_name(c)}{suffix}"
+            for c in found
+            for suffix in ("", "-centroids", "-summaries")
+        ],
+    )
+    delete_conversations(archive, found)
+    return len(found)

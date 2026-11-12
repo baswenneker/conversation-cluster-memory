@@ -3,6 +3,8 @@
 import chromadb
 import numpy as np
 from chromadb.api import ClientAPI
+from chromadb.api.models.Collection import Collection
+from chromadb.errors import NotFoundError
 
 
 class EmbeddingModelMismatchError(ValueError):
@@ -13,20 +15,40 @@ class VectorStore:
     """One conversation's Chroma collection. Every vector records the model that made it."""
 
     def __init__(self, client: ClientAPI, name: str, model_id: str) -> None:
+        self._client = client
+        self.name = name
         self.model_id = model_id
-        self._collection = client.get_or_create_collection(
-            name,
-            metadata={"embedding_model": model_id},
+        self._collection = self._open()
+        if self._collection.count() == 0:  # no vectors to mix, e.g. after a reindex cut short
+            if self._collection.metadata.get("embedding_model") != model_id:
+                self.reset(model_id)
+        self.check(self._collection.metadata.get("embedding_model"))
+
+    def _open(self) -> Collection:
+        return self._client.get_or_create_collection(
+            self.name,
+            metadata={"embedding_model": self.model_id},
             configuration={"hnsw": {"space": "cosine"}},
         )
-        self.check(self._collection.metadata.get("embedding_model"))
 
     def check(self, model_id: object) -> None:
         if model_id != self.model_id:
             raise EmbeddingModelMismatchError(
                 f"this conversation's vectors were made with {model_id!r}, not "
-                f"{self.model_id!r}; re-index the archive before switching models"
+                f"{self.model_id!r}; open it with {model_id!r} and call "
+                "reindex(new_embeddings) to switch models"
             )
+
+    def reset(self, model_id: str) -> None:
+        """Remove every vector and start over for `model_id`."""
+        self._client.delete_collection(self.name)
+        self.model_id = model_id
+        self._collection = self._open()
+
+    def model_ids(self) -> set[str]:
+        """The embedding model recorded with each vector."""
+        metadatas = self._collection.get(include=["metadatas"])["metadatas"] or []
+        return {str(m["embedding_model"]) for m in metadatas}
 
     def turns(self) -> set[int]:
         """The ids (turns, or clusters for a centroid store) that have a vector."""
@@ -47,6 +69,8 @@ class VectorStore:
         }
 
     def add(self, vectors: dict[int, list[float]]) -> None:
+        if not vectors:
+            return
         self._collection.upsert(
             ids=[str(i) for i in vectors],
             embeddings=list(vectors.values()),
@@ -59,6 +83,16 @@ class VectorStore:
         result = self._collection.query(query_embeddings=[vector], n_results=k)
         ids, distances = result["ids"][0], (result["distances"] or [[]])[0]
         return [(int(i), 1 - d) for i, d in zip(ids, distances, strict=True)]
+
+
+def delete_collections(path: str, names: list[str]) -> None:
+    """Remove these collections from the store at `path`; a missing one is skipped."""
+    client = chroma_client(path)
+    for name in names:
+        try:
+            client.delete_collection(name)
+        except NotFoundError:
+            pass
 
 
 def chroma_client(path: str | None) -> ClientAPI:

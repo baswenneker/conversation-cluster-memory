@@ -4,6 +4,7 @@ import json
 import re
 import sqlite3
 import threading
+from contextlib import closing
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -30,10 +31,14 @@ CREATE TABLE IF NOT EXISTS messages (
     created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS messages_by_turn ON messages (conversation, turn, id);
+-- A level-1 cluster holds turns; a higher level (a period) holds the clusters whose `parent`
+-- it is. A cluster with a parent is shown in the window through that parent's summary.
 CREATE TABLE IF NOT EXISTS clusters (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     conversation TEXT NOT NULL,
-    oldest_at TEXT NOT NULL DEFAULT ''
+    oldest_at TEXT NOT NULL DEFAULT '',
+    level INTEGER NOT NULL DEFAULT 1,
+    parent INTEGER REFERENCES clusters (id)
 );
 -- The primary key makes re-assigning a clustered turn impossible.
 CREATE TABLE IF NOT EXISTS cluster_turns (
@@ -81,6 +86,36 @@ INSERT INTO summaries_fts (rowid, text, subject, period, names, conversation, cl
 """
 
 
+_TABLES = (
+    "messages",
+    "clusters",
+    "cluster_turns",
+    "summaries",
+    "summarized_turns",
+    "summaries_fts",
+)
+
+
+def stored_conversations(path: Path) -> list[str]:
+    """The id of every conversation with a row in the archive file. Every table counts: a
+    round that commits after its conversation was deleted leaves rows without messages."""
+    union = " UNION ".join(f"SELECT conversation FROM {table}" for table in _TABLES)
+    with closing(sqlite3.connect(path)) as db:
+        rows = db.execute(union).fetchall()
+    return [conversation for (conversation,) in rows]
+
+
+def delete_conversations(path: Path, conversations: list[str]) -> None:
+    """Remove every row of these conversations from the archive file, in one transaction."""
+    marks = ",".join("?" * len(conversations))
+    with closing(sqlite3.connect(path)) as db:
+        # Overwrite the freed pages, so deleted text cannot be read back from the file.
+        db.execute("PRAGMA secure_delete = ON")
+        with db:
+            for table in _TABLES:
+                db.execute(f"DELETE FROM {table} WHERE conversation IN ({marks})", conversations)
+
+
 class MessageStore:
     """Stores the messages of one conversation, numbered by turn. Never truncates content."""
 
@@ -92,6 +127,12 @@ class MessageStore:
         )
         self._lock = threading.Lock()
         self._db.executescript(_SCHEMA)
+        columns = {row[1] for row in self._db.execute("PRAGMA table_info(clusters)")}
+        if "level" not in columns:  # an archive stored before period summaries existed
+            self._db.executescript(
+                "ALTER TABLE clusters ADD COLUMN level INTEGER NOT NULL DEFAULT 1;"
+                " ALTER TABLE clusters ADD COLUMN parent INTEGER REFERENCES clusters (id);"
+            )
         self._conversation = conversation
 
     def last_turn(self) -> int:
@@ -211,8 +252,49 @@ class MessageStore:
                 if cluster is None:
                     assert group is not None
                     cluster = ids[group]
+                # A grown cluster shows its own new summary again; the period summary that
+                # merged its older one keeps that text. Re-merging the period is the upgrade
+                # if returning topics make the window repeat itself.
+                self._db.execute("UPDATE clusters SET parent = NULL WHERE id = ?", (cluster,))
                 self._save_summary(cluster, summary, turns)
         return ids
+
+    def periods(self) -> list[tuple[int, str, tuple[int, ...]]]:
+        """Every period (a cluster above level 1) as (id, oldest_at, turns), oldest first; its
+        turns are those of the level-1 clusters below it."""
+        with self._lock:
+            rows = self._db.execute(
+                "WITH RECURSIVE tree (top, id) AS ("
+                " SELECT id, id FROM clusters WHERE conversation = ? AND level > 1"
+                " UNION ALL SELECT tree.top, c.id FROM clusters c JOIN tree ON c.parent = tree.id)"
+                " SELECT p.id, p.oldest_at, t.turn FROM tree"
+                " JOIN clusters p ON p.id = tree.top"
+                " JOIN cluster_turns t ON t.cluster = tree.id AND t.conversation = p.conversation"
+                " ORDER BY p.oldest_at, p.id, t.turn",
+                (self._conversation,),
+            ).fetchall()
+        grouped: dict[int, tuple[str, list[int]]] = {}
+        for period, oldest_at, turn in rows:
+            grouped.setdefault(period, (oldest_at, []))[1].append(turn)
+        return [(p, oldest_at, tuple(turns)) for p, (oldest_at, turns) in grouped.items()]
+
+    def merge(self, clusters: list[int], summary: Summary) -> int:
+        """Store a period: one cluster a level above the highest of `clusters`, with `summary`,
+        as their parent. Returns its id."""
+        marks = ",".join("?" * len(clusters))
+        with self._lock, self._db:
+            self._db.execute("BEGIN IMMEDIATE")
+            period = self._db.execute(
+                "INSERT INTO clusters (conversation, oldest_at, level)"
+                f" SELECT ?, MIN(oldest_at), MAX(level) + 1 FROM clusters WHERE id IN ({marks})",
+                (self._conversation, *clusters),
+            ).lastrowid
+            assert period is not None
+            self._db.execute(
+                f"UPDATE clusters SET parent = ? WHERE id IN ({marks})", (period, *clusters)
+            )
+            self._save_summary(period, summary, ())
+        return period
 
     def period(self, turns: list[int]) -> str:
         """The time span of these turns' messages, as "first to last" ISO times."""
@@ -269,14 +351,17 @@ class MessageStore:
             [(self._conversation, turn, summary_id) for turn in turns],
         )
 
-    def summaries(self) -> dict[int, ClusterSummary]:
-        """Each summarized cluster's current summary, in time order (by oldest member)."""
+    def summaries(self, in_window: bool = False) -> dict[int, ClusterSummary]:
+        """Each summarized cluster's current summary, in time order (by oldest member), of
+        every level; with `in_window` only those the window shows (no parent)."""
         with self._lock:
             rows = self._db.execute(
                 "SELECT s.cluster, s.id, s.text, s.anchors FROM summaries s"
                 " JOIN clusters c ON c.id = s.cluster"
                 " WHERE s.id IN (SELECT MAX(id) FROM summaries WHERE conversation = ?"
-                " GROUP BY cluster) ORDER BY c.oldest_at, c.id",
+                " GROUP BY cluster)"
+                + (" AND c.parent IS NULL" if in_window else "")
+                + " ORDER BY c.oldest_at, c.id",
                 (self._conversation,),
             ).fetchall()
         return {

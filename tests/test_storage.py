@@ -55,6 +55,7 @@ def test_opening_with_another_embedding_model_is_refused(tmp_path: Path) -> None
         "c1", path=tmp_path, embeddings=FakeEmbeddings("model-a"), keep_recent_turns=1
     )
     add_turns(memory, 2)
+    memory.wait_idle()  # turn 1's vector is written; an empty collection opens with any model
 
     with pytest.raises(EmbeddingModelMismatchError, match="model-a"):
         ConversationClusterMemory("c1", path=tmp_path, embeddings=FakeEmbeddings("model-b"))

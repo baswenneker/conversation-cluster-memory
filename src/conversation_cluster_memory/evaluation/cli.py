@@ -1,6 +1,8 @@
-"""`ccm-eval`: run the evaluation, sweep parameters, or regenerate the conversations.
+"""`ccm-eval`: run the evaluation, sweep parameters, estimate a year's cost, or regenerate
+the conversations.
 
-Runs locally, by hand: it calls OpenAI with OPENAI_API_KEY from the environment or `.env`.
+Runs locally, by hand: `run` and `sweep` call OpenAI with OPENAI_API_KEY from the environment
+or `.env`; `cost` and `generate` call no model.
 """
 
 import argparse
@@ -46,11 +48,17 @@ def main(argv: list[str] | None = None) -> int:
     )
     commands.add_parser("sweep", help="compare parameter values and write a table")
     commands.add_parser("generate", help="regenerate the committed conversations")
+    cost = commands.add_parser(
+        "cost", help="estimate a year's cost per conversation from the latest run, offline"
+    )
+    cost.add_argument("--turns-per-week", type=float, required=True)
     args = parser.parse_args(argv)
 
     if args.command == "generate":
         conversations.write(args.conversations)
         return 0
+    if args.command == "cost":
+        return _cost(args)
     try:
         openai_api_key()
     except MissingOpenAIKeyError as error:
@@ -86,6 +94,40 @@ def _run(loaded: list[conversations.Conversation], args: argparse.Namespace) -> 
         f"Results: {results_file}. {args.readme} is updated; commit it yourself."
     )
     return 0 if result.passed else 1
+
+
+def _cost(args: argparse.Namespace) -> int:
+    """A year of compaction cost for one conversation: the latest run's measured cost per
+    compaction round, times the rounds per turn it measured, times the turns in a year.
+
+    Counts what the memory spends (summarizing, embedding); answering and judging are the
+    evaluation's own cost and are left out.
+    """
+    results = sorted(args.results.glob("*.json"))
+    if not results:
+        print(f"ccm-eval: no results in {args.results}; run `ccm-eval run` first", file=sys.stderr)
+        return 1
+    latest = json.loads(results[-1].read_text())
+    spent = [latest["cost"].get(role) for role in ("summary", "embedding")]
+    if None in spent:
+        print(f"ccm-eval: {results[-1]} has a cost without a known price", file=sys.stderr)
+        return 1
+    rounds = sum(len(r) for r in latest["tokens"].values())
+    turns = sum(
+        len(c.turns) for c in conversations.load(args.conversations) if c.name in latest["tokens"]
+    )
+    if not rounds or not turns:
+        print(f"ccm-eval: {results[-1]} has no measured round to extrapolate", file=sys.stderr)
+        return 1
+    per_round = sum(spent) / rounds
+    yearly_rounds = args.turns_per_week * 52 * rounds / turns
+    print(
+        f"ccm-eval cost: from {results[-1]}: {rounds} compaction rounds over {turns} turns, "
+        f"${per_round:.4f} per round (summarizing and embedding). At "
+        f"{args.turns_per_week:g} turns per week: {yearly_rounds:.0f} compaction rounds and "
+        f"${per_round * yearly_rounds:.2f} per conversation per year."
+    )
+    return 0
 
 
 def _sweep(loaded: list[conversations.Conversation], args: argparse.Namespace) -> int:
