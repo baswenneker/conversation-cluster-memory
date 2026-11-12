@@ -9,7 +9,7 @@ import uuid
 import weakref
 from collections.abc import Callable, Sequence
 from pathlib import Path
-from typing import Literal
+from typing import Literal, NamedTuple
 
 from langchain_core.embeddings import Embeddings
 from langchain_core.language_models import BaseChatModel
@@ -43,6 +43,7 @@ from conversation_cluster_memory.summaries import (
     DEFAULT_SUMMARY_MODEL,
     POOR_COMPRESSION_RATIO,
     CompactionReport,
+    Summary,
     SummaryReport,
     first_tokens,
     memory_text,
@@ -55,6 +56,17 @@ from conversation_cluster_memory.vectors import VectorStore, chroma_client
 logger = logging.getLogger(__name__)
 
 type AutoCompact = Literal["background", "inline", "off"]
+
+
+class _Pending(NamedTuple):
+    """A cluster to summarize: committed (`cluster`) or planned this round (`plan_index`)."""
+
+    cluster: int | None
+    plan_index: int | None
+    new: list[int]  # turns no summary covers yet
+    turns: tuple[int, ...]  # all its turns
+
+
 type ResummarizeStrategy = Literal["incremental", "full"]
 
 
@@ -216,7 +228,7 @@ class ConversationClusterMemory:
             return True
         if self._check_due and self._unclustered_count() >= self.min_batch_turns:
             return True
-        return bool(self._unsummarized())
+        return bool(self._pending([]))
 
     def _compact(self, check: bool | None) -> CompactionReport:
         """One round: embed, cluster when a check is due (or `check`), summarize, report."""
@@ -228,11 +240,12 @@ class ConversationClusterMemory:
             report.window_tokens_before = self._tokens(self.window())
             try:
                 self._embed_turns_outside_window()
-                if check:
-                    report.clustered_turns = self._cluster_batch()
-                self._summarize(report)
+                plan = self._cluster_batch() if check else []
+                done = self._summarize(self._pending(plan), report)
+                if plan or done:
+                    self._commit(plan, done, report)
             except Exception as error:
-                # Committed work stays; what is left is retried by the next round.
+                # Nothing of this round is committed; the next round does it again.
                 logger.exception("compaction round failed; retrying in the next round")
                 report.errors.append(repr(error))
             report.window_tokens_after = self._tokens(self.window())
@@ -244,46 +257,86 @@ class ConversationClusterMemory:
                 logger.exception("on_compact callback failed")
         return report
 
-    def _unsummarized(self) -> dict[int, tuple[list[int], tuple[int, ...]]]:
-        """Clusters with turns no summary covers yet, as (new turns, all turns), oldest first."""
+    def _pending(self, plan: list[tuple[int | None, list[int]]]) -> list[_Pending]:
+        """Every cluster this round must summarize: committed clusters with turns no summary
+        covers yet, and the clusters `plan` grows or creates, oldest first."""
         summarized = self.archive.summarized_turns()
-        result = {}
-        for cluster, _, turns in self.archive.clusters():
+        joining: dict[int, list[int]] = {}
+        for cluster, group in plan:
+            if cluster is not None:
+                joining.setdefault(cluster, []).extend(group)
+        pending = []
+        for cluster, _, members in self.archive.clusters():
+            turns = tuple(sorted([*members, *joining.get(cluster, [])]))
             if new := [t for t in turns if t not in summarized]:
-                result[cluster] = (new, turns)
-        return result
+                pending.append(_Pending(cluster, None, new, turns))
+        pending += [
+            _Pending(None, i, group, tuple(group))
+            for i, (cluster, group) in enumerate(plan)
+            if cluster is None
+        ]
+        return pending
 
-    def _summarize(self, report: CompactionReport) -> None:
-        """Summarize every new or grown cluster; a failed one stays unsummarized for a retry."""
+    def _summarize(
+        self, pending: list[_Pending], report: CompactionReport
+    ) -> list[tuple[_Pending, Summary]]:
+        """Summarize each pending cluster; a failed one stays unsummarized for a retry."""
         current = self.archive.summaries()
-        for cluster, (new, turns) in self._unsummarized().items():
-            previous = current.get(cluster) if self.resummarize_strategy == "incremental" else None
-            inputs = new if previous is not None else list(turns)
-            stored = self.archive.turns(min(turns), max(turns))
-            # The token counts measure the turns as the window would hold them.
-            shortened = {t: self._shorten(stored[t]) for t in turns}
+        done = []
+        for item in pending:
+            previous = current.get(item.cluster) if item.cluster is not None else None
+            if self.resummarize_strategy == "full":
+                previous = None
+            inputs = item.new if previous is not None else list(item.turns)
+            stored = self.archive.turns(min(item.turns), max(item.turns))
             try:
                 summary, usage = summarize(
                     self._model(),
                     transcript([self._clip(stored[t]) for t in inputs]),
                     previous.text if previous is not None else None,
-                    self.archive.period(list(turns)),
+                    self.archive.period(list(item.turns)),
                 )
             except Exception as error:
-                logger.exception("summarizing cluster %s failed; retrying next round", cluster)
-                report.errors.append(f"cluster {cluster}: {error!r}")
+                name = item.cluster if item.cluster is not None else f"new {item.turns}"
+                logger.exception("summarizing cluster %s failed; retrying next round", name)
+                report.errors.append(f"cluster {name}: {error!r}")
                 continue
             report.input_tokens += usage.get("input_tokens", 0)
             report.output_tokens += usage.get("output_tokens", 0)
-            self.archive.save_summary(cluster, summary, turns)
-            original = self._tokens([m for t in turns for m in shortened[t]])
-            replaced = self._tokens([m for t in new for m in shortened[t]])
-            report.window_tokens_before += replaced
+            done.append((item, summary))
+        return done
+
+    def _commit(
+        self,
+        plan: list[tuple[int | None, list[int]]],
+        done: list[tuple[_Pending, Summary]],
+        report: CompactionReport,
+    ) -> None:
+        """Commit the round's clusters and summaries in one transaction, then report them."""
+        ids = self.archive.commit_round(
+            plan,
+            [(item.cluster, item.plan_index, summary, item.turns) for item, summary in done],
+        )
+        report.clustered_turns = sorted(t for _, group in plan for t in group)
+        if plan:
+            # Written after the SQLite commit; a missing centroid is backfilled by the next check.
+            members = {cluster: turns for cluster, _, turns in self.archive.clusters()}
+            self.centroids.add({c: self._centroid(members[c]) for c in set(ids)})
+        for item, summary in done:
+            stored = self.archive.turns(min(item.turns), max(item.turns))
+            shortened = {t: self._shorten(stored[t]) for t in item.turns}
+            # The token counts measure the turns as the window would hold them.
+            original = self._tokens([m for t in item.turns for m in shortened[t]])
+            report.window_tokens_before += self._tokens([m for t in item.new for m in shortened[t]])
             summary_tokens = self._count(summary.text)
+            cluster = item.cluster
+            if cluster is None:
+                assert item.plan_index is not None
+                cluster = ids[item.plan_index]
             report.summaries.append(
                 SummaryReport(
                     cluster,
-                    turns,
+                    item.turns,
                     original,
                     summary_tokens,
                     summary_tokens > POOR_COMPRESSION_RATIO * original,
@@ -358,8 +411,9 @@ class ConversationClusterMemory:
     def _unclustered_count(self) -> int:
         return len(self.vectors.turns() - self.archive.clustered_turns())
 
-    def _cluster_batch(self) -> list[int]:
-        """Cluster the unclustered embedded turns once there are `min_batch_turns` of them.
+    def _cluster_batch(self) -> list[tuple[int | None, list[int]]]:
+        """Plan the clustering of the unclustered embedded turns once there are
+        `min_batch_turns` of them: per batch cluster, the cluster it joins (None: a new one).
 
         Only turns outside the recent window have a vector, so the batch lies outside it.
         """
@@ -383,11 +437,7 @@ class ConversationClusterMemory:
                 if similarity >= best_similarity + (EPSILON if best is not None else 0):
                     best, best_similarity = cluster.id, similarity
             plan.append((best, group))
-        ids = self.archive.assign(plan)
-        # Written after the SQLite commit; a missing centroid is backfilled by the next check.
-        members = {cluster: turns for cluster, _, turns in self.archive.clusters()}
-        self.centroids.add({c: self._centroid(members[c]) for c in set(ids)})
-        return batch
+        return plan
 
     def _missing_vectors(self) -> set[int]:
         """Turns outside the recent window without a vector."""
@@ -419,7 +469,7 @@ class ConversationClusterMemory:
         """
         last = self.archive.last_turn()
         system = self.archive.turns(SYSTEM_TURN, SYSTEM_TURN).get(SYSTEM_TURN, [])
-        # One query: a summary and the turns it covers are committed together.
+        # One query, and a round commits its clusters and summaries in one transaction.
         if summaries := list(self.archive.summaries().values()):
             system = [*system, SystemMessage(memory_text(summaries))]
         recent = self.archive.turns(max(1, last - self.keep_recent_turns + 1), last)

@@ -1,6 +1,7 @@
 """Cluster summaries: the summary model's prompt and output, token counts, round reports."""
 
 import functools
+import json
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 
@@ -99,12 +100,17 @@ def summarize(
 
 def transcript(turns: Sequence[Sequence[BaseMessage]]) -> str:
     """The turns as plain text for the summary model."""
+    speaker = {"human": "User", "ai": "Assistant", "tool": "Tool result"}
     lines = []
     for messages in turns:
         for message in messages:
             if message.text:
-                speaker = {"human": "User", "ai": "Assistant", "tool": "Tool result"}
                 lines.append(f"{speaker.get(message.type, message.type)}: {message.text}")
+            if isinstance(message, AIMessage):
+                lines += [
+                    f"Assistant calls {call['name']}({json.dumps(call['args'])})"
+                    for call in message.tool_calls
+                ]
     return "\n".join(lines)
 
 

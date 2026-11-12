@@ -143,9 +143,20 @@ def test_a_short_summary_is_not_flagged(summary_model) -> None:
 
 def tool_turn(memory: ConversationClusterMemory, n: int, result: str) -> None:
     memory.add_message(HumanMessage(f"a: fetch {n}"))
-    memory.add_message(AIMessage("", tool_calls=[{"name": "fetch", "args": {}, "id": f"t{n}"}]))
+    call = {"name": "fetch", "args": {"id": n}, "id": f"t{n}"}
+    memory.add_message(AIMessage("", tool_calls=[call]))
     memory.add_message(ToolMessage(result, tool_call_id=f"t{n}"))
     memory.add_message(AIMessage(f"done {n}"))
+
+
+def test_the_summary_model_reads_tool_calls_and_their_arguments(summary_model) -> None:
+    memory = memory_for(summary_model, keep_recent_turns=3, min_batch_turns=1)
+    tool_turn(memory, 1, "ok")
+    add(memory, *"aaaa")
+
+    request = summary_model.prompts[0][1].text
+    assert 'Assistant calls fetch({"id": 1})' in request
+    assert "Tool result: ok" in request
 
 
 def test_large_tool_results_are_shortened_to_their_header_only_in_earlier_turns() -> None:
@@ -176,7 +187,7 @@ def test_background_returns_before_the_round_ends() -> None:
     add(memory, *"a" * 10)  # returns while the round waits in the model
 
     assert model.started.wait(5)
-    assert memory.clusters()[0].summary is None
+    assert memory.clusters() == []  # the round commits its clusters with their summaries
 
     model.gate.set()
     assert memory.wait_idle(5)
@@ -271,7 +282,7 @@ def test_a_round_interrupted_before_commit_is_redone_on_the_next_add_message(
     model = FakeSummaryModel()
     reopened = open_memory(model)
     assert reopened.window()[:-1] == before[2:]  # the previous state, plus the new message
-    assert reopened.clusters()[0].summary is None
+    assert reopened.clusters() == []  # nothing of the interrupted round was committed
 
     reopened.add_message(AIMessage("answer 10"))
 
@@ -305,3 +316,24 @@ def test_each_report_reaches_on_compact_and_the_log_with_tokens(summary_model, c
     assert report.window_tokens_before > report.window_tokens_after > 0
     assert (report.input_tokens, report.output_tokens) == (100, 10)
     assert "window_tokens_before" in caplog.text
+
+
+class InterruptingSecondCall(FakeSummaryModel):
+    def _generate(self, messages, stop=None, run_manager=None, **kwargs):
+        if self.prompts:
+            raise Interrupted
+        return super()._generate(messages, stop, run_manager, **kwargs)
+
+
+def test_a_round_commits_all_its_clusters_and_summaries_at_once(tmp_path: Path) -> None:
+    memory = memory_for(InterruptingSecondCall(), path=tmp_path)
+    add(memory, *"aaaabbb")
+    memory.add_message(HumanMessage("b: question 8"))
+    add(memory, "c")
+    with pytest.raises(Interrupted):  # the first cluster is summarized, the second is not
+        memory.add_message(HumanMessage("c: question 10"))
+
+    reopened = memory_for(FakeSummaryModel(), path=tmp_path)
+
+    assert reopened.clusters() == []
+    assert not reopened.window()[0].text.startswith("Conversation memory")
