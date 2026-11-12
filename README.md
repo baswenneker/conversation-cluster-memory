@@ -66,9 +66,10 @@ messages = memory.window()  # system messages, then the last `keep_recent_turns`
 - **Turns.** A turn is one user message plus everything until the next user message. `keep_recent_turns` (default 10) counts turns. A turn is embedded once, when it leaves the recent window; turns whose embedding failed are backfilled on the next `add_message`.
 - **System messages.** A system message (such as the system prompt) belongs to no turn: it is never counted, embedded or summarized, and `window()` always returns it first.
 - **Embedded text.** By default the user message, the assistant answer and, per tool result, only a header with the tool name and size. Pass `embedding_text=` to replace it. Tool results are always stored in full.
+- **Topic clusters.** Every `cluster_every_n_turns` turns (default 5), once at least `min_batch_turns` (default 8) embedded turns outside the window are unclustered, that batch is clustered by topic: agglomerative clustering (average linkage) on cosine similarity, with a small bonus for turns close in time, cut at `similarity_threshold` (default 0.8, a minimum similarity). A batch cluster whose centroid reaches the threshold against an existing cluster joins the most similar one (on a tie, the oldest); otherwise it becomes a new cluster. A clustered turn is never re-assigned. `memory.clusters()` lists them; pass `clustering=` to use another strategy.
 - **Storage.** With `path`, messages go to `archive.sqlite3` and vectors to `chroma/` in that directory. Without it, nothing touches disk.
 
-The demo (`uv run python -m conversation_cluster_memory`) shows a built-in conversation and which turns have a vector.
+The demo (`uv run python -m conversation_cluster_memory`) shows a built-in conversation, which turns have a vector, and which turns fall into which cluster with their similarity to its centroid.
 
 ## Evaluation results
 

@@ -6,6 +6,7 @@ uv run python -m conversation_cluster_memory
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMessage
 
 from conversation_cluster_memory import ConversationClusterMemory, ConversationKey
+from conversation_cluster_memory.clustering import cosine
 
 CONVERSATION: list[BaseMessage] = [
     HumanMessage("I want to start running. Where do I begin?"),
@@ -45,9 +46,19 @@ CONVERSATION: list[BaseMessage] = [
 
 
 def main() -> None:
-    memory = ConversationClusterMemory(ConversationKey("demo", user="reader"))
+    # A small window and batches so this short conversation is clustered twice, and the
+    # second batch can join a cluster of the first. The threshold is lowered: with this model
+    # same-topic turns often score only 0.5-0.7.
+    memory = ConversationClusterMemory(
+        ConversationKey("demo", user="reader"),
+        keep_recent_turns=4,
+        min_batch_turns=4,
+        cluster_every_n_turns=4,
+        similarity_threshold=0.5,
+    )
     print(f"Embedding model: {memory.vectors.model_id}")
-    print(f"Recent window: {memory.keep_recent_turns} turns\n")
+    print(f"Recent window: {memory.keep_recent_turns} turns")
+    print(f"Similarity threshold: {memory.similarity_threshold}\n")
     for message in CONVERSATION:
         memory.add_message(message)
 
@@ -58,6 +69,13 @@ def main() -> None:
         print(f"turn {number:2}  [{mark:9}]  {messages[0].text}")
     window = memory.window()
     print(f"\n{len(with_vector)} turns have a vector; the window holds {len(window)} messages.")
+
+    vectors = memory.vectors.get()
+    for cluster in memory.clusters():
+        print(f"\ncluster {cluster.id} (similarity of each turn to the cluster centroid)")
+        for number in cluster.turns:
+            similarity = cosine(vectors[number], cluster.centroid)
+            print(f"  turn {number:2}  {similarity:.2f}  {turns[number][0].text}")
 
 
 if __name__ == "__main__":

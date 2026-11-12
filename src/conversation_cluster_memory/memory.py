@@ -7,9 +7,22 @@ import weakref
 from pathlib import Path
 
 from langchain_core.embeddings import Embeddings
-from langchain_core.messages import BaseMessage, MessageLikeRepresentation, convert_to_messages
+from langchain_core.messages import (
+    BaseMessage,
+    HumanMessage,
+    MessageLikeRepresentation,
+    convert_to_messages,
+)
 
 from conversation_cluster_memory.archive import SYSTEM_TURN, MessageStore
+from conversation_cluster_memory.clustering import (
+    EPSILON,
+    AgglomerativeClustering,
+    Cluster,
+    ClusteringStrategy,
+    centroid,
+    cosine,
+)
 from conversation_cluster_memory.embeddings import (
     EmbeddingText,
     default_embedding_text,
@@ -33,15 +46,29 @@ class ConversationClusterMemory:
         embeddings: Embeddings | None = None,
         keep_recent_turns: int = 10,
         embedding_text: EmbeddingText = default_embedding_text,
+        min_batch_turns: int = 8,
+        cluster_every_n_turns: int = 5,
+        similarity_threshold: float = 0.8,
+        clustering: ClusteringStrategy | None = None,
     ) -> None:
         if keep_recent_turns < 1:
             # The newest turn is still open; embedding it would freeze an incomplete vector.
             raise ValueError(f"keep_recent_turns must be at least 1; got {keep_recent_turns}")
+        if min_batch_turns < 1 or cluster_every_n_turns < 1:
+            raise ValueError("min_batch_turns and cluster_every_n_turns must be at least 1")
+        if not -1 <= similarity_threshold <= 1:
+            raise ValueError(
+                f"similarity_threshold is a cosine similarity; got {similarity_threshold}"
+            )
         self.keep_recent_turns = keep_recent_turns
-        # One embedding pass at a time per memory object, so a turn is embedded once. Memory
-        # objects in other processes sharing the path are not covered; a lock in SQLite
-        # would be the upgrade if that ever happens in practice.
-        self._embed_lock = threading.Lock()
+        self.min_batch_turns = min_batch_turns
+        self.cluster_every_n_turns = cluster_every_n_turns
+        self.similarity_threshold = similarity_threshold
+        self.clustering = clustering or AgglomerativeClustering()
+        # One embedding and clustering pass at a time per memory object, so a turn is embedded
+        # and clustered once. Memory objects in other processes sharing the path are not
+        # covered; a lock in SQLite would be the upgrade if that ever happens in practice.
+        self._lock = threading.Lock()
         self.embeddings = embeddings or default_embeddings()
         self.embedding_text = embedding_text
         name = collection_name(key)
@@ -52,18 +79,70 @@ class ConversationClusterMemory:
             name = f"{name}-{uuid.uuid4().hex[:8]}"
             client = chroma_client(None)
             weakref.finalize(self, client.delete_collection, name)
+            weakref.finalize(self, client.delete_collection, f"{name}-centroids")
         else:
             directory = Path(path)
             directory.mkdir(parents=True, exist_ok=True)
             self.archive = MessageStore(directory / "archive.sqlite3", storage_id(key))
             client = chroma_client(str(directory / "chroma"))
-        self.vectors = VectorStore(client, name, embedding_model_id(self.embeddings))
+        model_id = embedding_model_id(self.embeddings)
+        self.vectors = VectorStore(client, name, model_id)
+        self.centroids = VectorStore(client, f"{name}-centroids", model_id)
 
     def add_message(self, message: MessageLikeRepresentation) -> None:
         (converted,) = convert_to_messages([message])
-        self.archive.add(converted)
-        with self._embed_lock:
+        turn = self.archive.add(converted)
+        with self._lock:
             self._embed_turns_outside_window()
+            if isinstance(converted, HumanMessage) and turn % self.cluster_every_n_turns == 0:
+                try:
+                    self._cluster_batch()
+                except Exception:
+                    # The message is stored; unclustered turns wait for the next check.
+                    logger.exception("clustering failed; retrying at the next check")
+
+    def clusters(self) -> list[Cluster]:
+        """Every cluster, oldest first."""
+        stored = self.archive.clusters()
+        centroids = self.centroids.get([cluster for cluster, _, _ in stored])
+        return [
+            Cluster(c, turns, oldest_at, centroids.get(c) or self._centroid(turns))
+            for c, oldest_at, turns in stored
+        ]
+
+    def _centroid(self, turns: tuple[int, ...] | list[int]) -> list[float]:
+        vectors = self.vectors.get(list(turns))
+        return centroid([vectors[t] for t in turns])
+
+    def _cluster_batch(self) -> None:
+        """Cluster the unclustered embedded turns once there are `min_batch_turns` of them.
+
+        Only turns outside the recent window have a vector, so the batch lies outside it.
+        """
+        stored = {c: turns for c, _, turns in self.archive.clusters()}
+        if missing := stored.keys() - self.centroids.turns():  # write failed after a commit
+            self.centroids.add({c: self._centroid(stored[c]) for c in missing})
+        batch = sorted(self.vectors.turns() - self.archive.clustered_turns())
+        if len(batch) < self.min_batch_turns:
+            return
+        vectors = self.vectors.get(batch)
+        groups = self.clustering.cluster(
+            batch, [vectors[t] for t in batch], self.similarity_threshold
+        )
+        existing = self.clusters()  # oldest first, so on a tie the oldest wins
+        plan: list[tuple[int | None, list[int]]] = []
+        for group in groups:
+            batch_centroid = centroid([vectors[t] for t in group])
+            best, best_similarity = None, self.similarity_threshold - EPSILON
+            for cluster in existing:
+                similarity = cosine(batch_centroid, cluster.centroid)
+                if similarity >= best_similarity + (EPSILON if best is not None else 0):
+                    best, best_similarity = cluster.id, similarity
+            plan.append((best, group))
+        ids = self.archive.assign(plan)
+        # Written after the SQLite commit; a missing centroid is backfilled by the next check.
+        members = {cluster: turns for cluster, _, turns in self.archive.clusters()}
+        self.centroids.add({c: self._centroid(members[c]) for c in set(ids)})
 
     def _embed_turns_outside_window(self) -> None:
         """Embed every turn outside the recent window that has no vector yet (incl. backfill)."""
