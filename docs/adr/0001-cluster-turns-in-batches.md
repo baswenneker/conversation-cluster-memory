@@ -7,7 +7,7 @@ Per-message clustering split a short question from its long answer or tool resul
 ## Considered Options
 
 - Online per message (the first plan): simplest, but splits questions from answers.
-- Louvain community detection, as in an earlier podcast segmenter: finds topics without a cluster count, but is non-deterministic and built for large graphs, not batches of about eight turns.
+- Louvain community detection, as in an earlier topic segmenter for transcripts: finds topics without a cluster count, but is non-deterministic and built for large graphs, not batches of about eight turns.
 
 ## Consequences
 
