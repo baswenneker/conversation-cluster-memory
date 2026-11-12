@@ -8,6 +8,7 @@ from conversation_cluster_memory.embeddings import (
 )
 from conversation_cluster_memory.keys import ConversationKey, SupportsKeyParts
 from conversation_cluster_memory.memory import ConversationClusterMemory
+from conversation_cluster_memory.retrieval import RetrievalHit
 from conversation_cluster_memory.summaries import (
     DEFAULT_SUMMARY_MODEL,
     ClusterSummary,
@@ -26,6 +27,7 @@ __all__ = [
     "ConversationKey",
     "EmbeddingModelMismatchError",
     "MissingOpenAIKeyError",
+    "RetrievalHit",
     "Summary",
     "SummaryReport",
     "SupportsKeyParts",

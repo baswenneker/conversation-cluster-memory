@@ -50,14 +50,16 @@ CONVERSATION: list[BaseMessage] = [
 
 def main() -> None:
     # A small window and batches so this short conversation is clustered twice, and the
-    # second batch can join a cluster of the first. The threshold is lowered: with this model
-    # same-topic turns often score only 0.5-0.7.
+    # second batch can join a cluster of the first. The thresholds are lowered: with this
+    # model same-topic turns often score only 0.5-0.7, and a "do you remember" question
+    # about a topic scores about 0.4 against it.
     memory = ConversationClusterMemory(
         ConversationKey("demo", user="reader"),
         keep_recent_turns=4,
         min_batch_turns=4,
         cluster_every_n_turns=4,
         similarity_threshold=0.5,
+        retrieval_min_similarity=0.4,
         auto_compact="inline",
         on_compact=report,
     )
@@ -88,6 +90,13 @@ def main() -> None:
     print("\nThe window: summaries replace their clusters' turns, the recent turns stay verbatim.")
     for message in window:
         print(f"  {message.type:6}  {message.text[:200]}")
+
+    query = "Do you remember when we talked about running shoes?"
+    print(f"\nRetrieval for: {query}")
+    for hit in memory.retrieve(query):
+        kind = "summary" if hit.is_summary else "original turns"
+        print(f"  cluster {hit.cluster}  similarity {hit.similarity:.2f}  {kind}")
+        print(f"    {hit.content[:200]}")
 
 
 def report(round: CompactionReport) -> None:

@@ -21,6 +21,7 @@ from langchain_core.messages import (
     SystemMessage,
     convert_to_messages,
 )
+from langchain_core.tools import BaseTool, StructuredTool
 
 from conversation_cluster_memory.archive import SYSTEM_TURN, MessageStore
 from conversation_cluster_memory.clustering import (
@@ -40,6 +41,7 @@ from conversation_cluster_memory.embeddings import (
     tool_result_headers,
 )
 from conversation_cluster_memory.keys import KeyLike, collection_name, storage_id
+from conversation_cluster_memory.retrieval import REWRITE_PROMPT, RetrievalHit, fuse, hit_text
 from conversation_cluster_memory.summaries import (
     DEFAULT_SUMMARY_MODEL,
     POOR_COMPRESSION_RATIO,
@@ -53,7 +55,11 @@ from conversation_cluster_memory.summaries import (
     token_counter,
     transcript,
 )
-from conversation_cluster_memory.vectors import VectorStore, chroma_client
+from conversation_cluster_memory.vectors import (
+    EmbeddingModelMismatchError,
+    VectorStore,
+    chroma_client,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -92,6 +98,12 @@ class ConversationClusterMemory:
         max_tool_result_tokens: int = 2000,
         auto_compact: AutoCompact = "background",
         on_compact: Callable[[CompactionReport], object] | None = None,
+        auto_retrieval: bool = True,
+        retrieval_k: int = 3,
+        retrieval_token_budget: int = 1500,
+        retrieval_min_similarity: float = 0.5,
+        retrieval_min_keyword_score: float = 0.01,
+        retrieval_rewrite_query: bool = False,
     ) -> None:
         if keep_recent_turns < 1:
             # The newest turn is still open; embedding it would freeze an incomplete vector.
@@ -112,6 +124,19 @@ class ConversationClusterMemory:
             )
         if auto_compact not in ("background", "inline", "off"):
             raise ValueError(f"auto_compact is background, inline or off; got {auto_compact!r}")
+        if not -1 <= retrieval_min_similarity <= 1:
+            raise ValueError(
+                f"retrieval_min_similarity is a cosine similarity; got {retrieval_min_similarity}"
+            )
+        self.auto_retrieval = auto_retrieval
+        self.retrieval_k = retrieval_k
+        self.retrieval_token_budget = retrieval_token_budget
+        self.retrieval_min_similarity = retrieval_min_similarity
+        # SQLite's BM25 scores a word found in half or more of the summaries at about 1e-6, so
+        # the default drops common words ("the", "about") and keeps rarer ones. The flip side:
+        # with fewer than three summaries no word is rare, and only the vector search finds.
+        self.retrieval_min_keyword_score = retrieval_min_keyword_score
+        self.retrieval_rewrite_query = retrieval_rewrite_query
         self.clustering = clustering or AgglomerativeClustering()
         self.resummarize_strategy = resummarize_strategy
         self.max_tool_result_tokens = max_tool_result_tokens
@@ -148,6 +173,7 @@ class ConversationClusterMemory:
             client = chroma_client(None)
             weakref.finalize(self, client.delete_collection, name)
             weakref.finalize(self, client.delete_collection, f"{name}-centroids")
+            weakref.finalize(self, client.delete_collection, f"{name}-summaries")
         else:
             directory = Path(path)
             directory.mkdir(parents=True, exist_ok=True)
@@ -156,6 +182,8 @@ class ConversationClusterMemory:
         model_id = embedding_model_id(self.embeddings)
         self.vectors = VectorStore(client, name, model_id)
         self.centroids = VectorStore(client, f"{name}-centroids", model_id)
+        # Keyed by summary id, so a cluster's newer summary never reuses an older one's vector.
+        self.summary_vectors = VectorStore(client, f"{name}-summaries", model_id)
 
     def add_message(self, message: MessageLikeRepresentation) -> None:
         """Store the message and, unless `auto_compact` is off, start a round if there is work.
@@ -241,7 +269,8 @@ class ConversationClusterMemory:
                     check, self._check_due = self._check_due, False
             # The recent turns counted here are not added again when this round summarizes them.
             first_recent = self.archive.last_turn() - self.keep_recent_turns + 1
-            report.window_tokens_before = self._tokens(self.window())
+            # Retrieval hits are left out: they depend on the question, not on the round.
+            report.window_tokens_before = self._tokens(self._window(retrieval=False))
             try:
                 self._embed_turns_outside_window()
                 plan = self._cluster_batch() if check else []
@@ -252,7 +281,8 @@ class ConversationClusterMemory:
                 # Nothing of this round is committed; the next round does it again.
                 logger.exception("compaction round failed; retrying in the next round")
                 report.errors.append(repr(error))
-            report.window_tokens_after = self._tokens(self.window())
+            self._embed_summaries()
+            report.window_tokens_after = self._tokens(self._window(retrieval=False))
         logger.info("compaction round: %s", report)
         if self.on_compact is not None:
             try:
@@ -474,20 +504,132 @@ class ConversationClusterMemory:
             # The message is already stored; the next add_message backfills these turns.
             logger.exception("embedding turns %s failed; retrying on the next message", numbers)
 
+    def _embed_summaries(self) -> None:
+        """Embed every current summary without a vector (incl. backfill after a failure)."""
+        missing = {s.id: s.text for s in self.archive.summaries().values()}
+        for done in self.summary_vectors.turns() & missing.keys():
+            del missing[done]
+        if not missing:
+            return
+        try:
+            vectors = self.embeddings.embed_documents(list(missing.values()))
+            self.summary_vectors.add(dict(zip(missing, vectors, strict=True)))
+        except Exception:
+            # Until then retrieval falls back to the cluster's centroid.
+            logger.exception("embedding summaries %s failed; retrying next round", list(missing))
+
+    def retrieve(self, query: str, k: int | None = None) -> list[RetrievalHit]:
+        """The clusters of this conversation that match the query, best first: at most `k`
+        (default `retrieval_k`) and at most `retrieval_token_budget` tokens together."""
+        return self._search(query, self.retrieval_k if k is None else k, exclude=set())
+
+    def as_tool(self) -> BaseTool:
+        """A LangChain tool `recall_memory(query)` that returns the hits of `retrieve()`."""
+
+        def recall_memory(query: str) -> tuple[str, list[RetrievalHit]]:
+            """Search earlier topics of this conversation that are no longer in view.
+
+            Use it when the user refers to something discussed before, such as a name, an
+            identifier, a number or a decision.
+            """
+            hits = self.retrieve(query)
+            return "\n\n".join(hit_text(hit) for hit in hits) or "Nothing found.", hits
+
+        return StructuredTool.from_function(recall_memory, response_format="content_and_artifact")
+
+    def _search(self, query: str, k: int, exclude: set[int]) -> list[RetrievalHit]:
+        """Hybrid search over the clusters not in `exclude`: vector and keyword hits, fused
+        by rank, then cut at `k` and the token budget."""
+        self.vectors.check(embedding_model_id(self.embeddings))
+        if k < 1 or not {c for c, _, _ in self.archive.clusters()} - exclude:
+            return []
+        if self.retrieval_rewrite_query:
+            query = self._rewrite(query)
+        vector = self.embeddings.embed_query(query)
+        # Read after the model calls, so a round that commits meanwhile is seen by both
+        # searches below. Every cluster is compared one by one; a nearest-neighbour query in
+        # Chroma is the upgrade when conversations reach thousands of clusters.
+        candidates = {c.id: c for c in self.clusters() if c.id not in exclude}
+        summary_vectors = self.summary_vectors.get(
+            [c.summary.id for c in candidates.values() if c.summary is not None]
+        )
+        similarity = {
+            c.id: cosine(
+                vector,
+                summary_vectors.get(c.summary.id, c.centroid) if c.summary else c.centroid,
+            )
+            for c in candidates.values()
+        }
+        by_vector = sorted(
+            (c for c, s in similarity.items() if s >= self.retrieval_min_similarity - EPSILON),
+            key=lambda c: (-similarity[c], c),
+        )
+        by_keyword = [
+            c
+            for c, _ in self.archive.keyword_search(query, self.retrieval_min_keyword_score)
+            if c in candidates
+        ]
+        hits: list[RetrievalHit] = []
+        budget = self.retrieval_token_budget
+        for cluster in fuse(by_vector, by_keyword):
+            if len(hits) == k:
+                break
+            hit = self._hit(candidates[cluster], similarity[cluster])
+            tokens = self._count(hit_text(hit))
+            if tokens > budget:
+                continue  # dropped; a smaller hit further down may still fit
+            budget -= tokens
+            hits.append(hit)
+        return hits
+
+    def _hit(self, cluster: Cluster, similarity: float) -> RetrievalHit:
+        start, end = self.archive.time_range(list(cluster.turns))
+        if cluster.summary is not None:
+            return RetrievalHit(cluster.id, similarity, start, end, True, cluster.summary.text)
+        stored = self.archive.turns(min(cluster.turns), max(cluster.turns))
+        content = transcript([self._shorten(stored[t]) for t in cluster.turns])
+        return RetrievalHit(cluster.id, similarity, start, end, False, content)
+
+    def _rewrite(self, query: str) -> str:
+        """The chat model's search query for the message; the message itself if that fails."""
+        try:
+            rewritten = self._model().invoke([SystemMessage(REWRITE_PROMPT), HumanMessage(query)])
+        except Exception:
+            logger.exception("rewriting the query failed; searching with the message itself")
+            return query
+        return rewritten.text.strip() or query
+
     def window(self) -> list[BaseMessage]:
         """What to send to the model, from the last committed state.
 
         System messages first, then one "Conversation memory" system message with the cluster
-        summaries in time order, then the last `keep_recent_turns` turns verbatim. In every
-        turn but the current one, tool results above `max_tool_result_tokens` are replaced by
-        their header.
+        summaries in time order, then (with `auto_retrieval`) one system message per retrieval
+        hit for the latest user message, then the last `keep_recent_turns` turns verbatim. In
+        every turn but the current one, tool results above `max_tool_result_tokens` are
+        replaced by their header.
         """
+        return self._window(self.auto_retrieval)
+
+    def _window(self, retrieval: bool) -> list[BaseMessage]:
         last = self.archive.last_turn()
         system = self.archive.turns(SYSTEM_TURN, SYSTEM_TURN).get(SYSTEM_TURN, [])
         # One query, and a round commits its clusters and summaries in one transaction.
-        if summaries := list(self.archive.summaries().values()):
-            system = [*system, SystemMessage(memory_text(summaries))]
+        summaries = self.archive.summaries()
+        if summaries:
+            system = [*system, SystemMessage(memory_text(list(summaries.values())))]
         recent = self.archive.turns(max(1, last - self.keep_recent_turns + 1), last)
+        question = next((m.text for m in recent.get(last, []) if isinstance(m, HumanMessage)), "")
+        if retrieval and question:
+            # Clusters whose summary is in the memory message are in the window already.
+            try:
+                hits = self._search(question, self.retrieval_k, exclude=set(summaries))
+            except EmbeddingModelMismatchError:
+                raise
+            except Exception:
+                # A model outage must not cost the application its window: send it without hits.
+                logger.exception("retrieval failed; the window has no retrieval hits")
+                hits = []
+            system += [SystemMessage(hit_text(hit)) for hit in hits]
         return system + [
             message
             for turn in sorted(recent)
