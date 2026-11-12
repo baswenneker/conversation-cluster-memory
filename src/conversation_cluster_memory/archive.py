@@ -27,6 +27,18 @@ CREATE TABLE IF NOT EXISTS messages (
     created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS messages_by_turn ON messages (conversation, turn, id);
+CREATE TABLE IF NOT EXISTS clusters (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    conversation TEXT NOT NULL,
+    oldest_at TEXT NOT NULL DEFAULT ''
+);
+-- The primary key makes re-assigning a clustered turn impossible.
+CREATE TABLE IF NOT EXISTS cluster_turns (
+    conversation TEXT NOT NULL,
+    turn INTEGER NOT NULL,
+    cluster INTEGER NOT NULL REFERENCES clusters (id),
+    PRIMARY KEY (conversation, turn)
+);
 """
 
 
@@ -102,3 +114,52 @@ class MessageStore:
         for turn, data in rows:
             grouped.setdefault(turn, []).extend(messages_from_dict([json.loads(data)]))
         return grouped
+
+    def clustered_turns(self) -> set[int]:
+        with self._lock:
+            rows = self._db.execute(
+                "SELECT turn FROM cluster_turns WHERE conversation = ?", (self._conversation,)
+            ).fetchall()
+        return {turn for (turn,) in rows}
+
+    def clusters(self) -> list[tuple[int, str, tuple[int, ...]]]:
+        """Every cluster as (id, oldest_at, turns), oldest first; ties by id."""
+        with self._lock:
+            rows = self._db.execute(
+                "SELECT c.id, c.oldest_at, t.turn FROM clusters c"
+                " JOIN cluster_turns t ON t.cluster = c.id AND t.conversation = c.conversation"
+                " WHERE c.conversation = ? ORDER BY c.oldest_at, c.id, t.turn",
+                (self._conversation,),
+            ).fetchall()
+        grouped: dict[int, tuple[str, list[int]]] = {}
+        for cluster, oldest_at, turn in rows:
+            grouped.setdefault(cluster, (oldest_at, []))[1].append(turn)
+        return [(c, oldest_at, tuple(turns)) for c, (oldest_at, turns) in grouped.items()]
+
+    def assign(self, groups: list[tuple[int | None, list[int]]]) -> list[int]:
+        """Add each group of turns to its cluster (None: a new one), in one transaction.
+
+        Returns the cluster id per group.
+        """
+        ids = []
+        with self._lock, self._db:
+            self._db.execute("BEGIN IMMEDIATE")
+            for cluster, turns in groups:
+                if cluster is None:
+                    cluster = self._db.execute(
+                        "INSERT INTO clusters (conversation) VALUES (?)", (self._conversation,)
+                    ).lastrowid
+                    assert cluster is not None
+                self._db.executemany(
+                    "INSERT INTO cluster_turns (conversation, turn, cluster) VALUES (?, ?, ?)",
+                    [(self._conversation, turn, cluster) for turn in turns],
+                )
+                # A backfilled turn may be older than every current member.
+                self._db.execute(
+                    "UPDATE clusters SET oldest_at = (SELECT MIN(m.created_at) FROM messages m"
+                    " JOIN cluster_turns t ON t.conversation = m.conversation AND t.turn = m.turn"
+                    " WHERE t.conversation = ? AND t.cluster = ?) WHERE id = ?",
+                    (self._conversation, cluster, cluster),
+                )
+                ids.append(cluster)
+        return ids
