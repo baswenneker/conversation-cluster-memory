@@ -1,13 +1,27 @@
-"""Headless browser test of the motion graph page (docs/motion-graph/index.html)."""
+"""Headless browser tests of the motion graph pages: English (index.html), Dutch (index.nl.html)."""
 
 import re
 from collections.abc import Iterator
 from pathlib import Path
+from typing import NamedTuple
 
 import pytest
 from playwright.sync_api import Page, sync_playwright
 
-PAGE = Path(__file__).resolve().parents[1] / "docs" / "motion-graph" / "index.html"
+DOCS = Path(__file__).resolve().parents[1] / "docs" / "motion-graph"
+
+
+class Lang(NamedTuple):
+    file: str
+    next: str
+    back: str
+    nav: str
+
+
+LANGS = [
+    Lang("index.html", "Next", "Back", "Steps"),
+    Lang("index.nl.html", "Volgende", "Vorige", "Stappen"),
+]
 STEPS = 8
 WIDTH, HEIGHT = 1920, 1080
 
@@ -40,14 +54,19 @@ def requests() -> list[str]:
     return []
 
 
+@pytest.fixture(params=LANGS, ids=lambda lang: lang.file)
+def lang(request: pytest.FixtureRequest) -> Lang:
+    return request.param
+
+
 @pytest.fixture
-def page(requests: list[str]) -> Iterator[Page]:
+def page(requests: list[str], lang: Lang) -> Iterator[Page]:
     with sync_playwright() as p:
         browser = p.chromium.launch()
         page = browser.new_page(viewport={"width": WIDTH, "height": HEIGHT})
         page.on("request", lambda request: requests.append(request.url))
         page.add_init_script(COUNT_TIMERS)
-        page.goto(PAGE.as_uri())
+        page.goto((DOCS / lang.file).as_uri())
         page.evaluate("document.fonts.ready")
         yield page
         browser.close()
@@ -67,9 +86,9 @@ def current_step(page: Page) -> str:
     return page.locator("[data-testid=step-indicator]").inner_text()
 
 
-def test_next_back_arrows_and_space_navigate(page: Page) -> None:
+def test_next_back_arrows_and_space_navigate(page: Page, lang: Lang) -> None:
     assert current_step(page) == "01 / 08"
-    page.get_by_role("button", name="Next").click()
+    page.get_by_role("button", name=lang.next).click()
     assert current_step(page) == "02 / 08"
     page.keyboard.press("ArrowRight")
     assert current_step(page) == "03 / 08"
@@ -77,7 +96,7 @@ def test_next_back_arrows_and_space_navigate(page: Page) -> None:
     assert current_step(page) == "04 / 08"
     page.keyboard.press("ArrowLeft")
     assert current_step(page) == "03 / 08"
-    page.get_by_role("button", name="Back").click()
+    page.get_by_role("button", name=lang.back).click()
     assert current_step(page) == "02 / 08"
 
 
@@ -108,8 +127,8 @@ def test_bottom_right_quarter_stays_empty_in_every_step(page: Page) -> None:
         page.keyboard.press("ArrowRight")
 
 
-def test_h_hides_and_shows_the_controls(page: Page) -> None:
-    controls = page.get_by_role("navigation", name="Steps")
+def test_h_hides_and_shows_the_controls(page: Page, lang: Lang) -> None:
+    controls = page.get_by_role("navigation", name=lang.nav)
     assert controls.is_visible()
     page.keyboard.press("h")
     assert controls.is_hidden()
@@ -147,6 +166,7 @@ def test_parameters_shown_match_the_library_defaults(page: Page) -> None:
         assert parameter in shown
 
 
-def test_colours_come_from_the_design_tokens() -> None:
-    html = PAGE.read_text()
+@pytest.mark.parametrize("file", [lang.file for lang in LANGS])
+def test_colours_come_from_the_design_tokens(file: str) -> None:
+    html = (DOCS / file).read_text()
     assert re.findall(r"#[0-9a-fA-F]{3,8}\b|rgba?\(", html) == []
