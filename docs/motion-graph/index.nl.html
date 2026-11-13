@@ -1,0 +1,606 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Conversation cluster memory</title>
+<link rel="stylesheet" href="design-system/tokens.css">
+<link rel="stylesheet" href="design-system/bundle.css">
+<style>
+  /* Layout: the diagram fills the top half, text and controls the bottom-left quarter.
+     The bottom-right quarter stays empty for the camera overlay. */
+  html, body { height: 100%; overflow: hidden; }
+
+  .surface { position: relative; height: 100%; }
+
+  .brand {
+    position: absolute;
+    top: var(--hf-space-xl);
+    left: 4vw;
+    display: flex;
+    align-items: center;
+    gap: var(--hf-space-md);
+  }
+  .brand img { height: 22px; width: auto; display: block; }
+
+  .stage { position: absolute; top: 11vh; left: 4vw; width: 92vw; height: 38vh; }
+
+  .caption { position: absolute; top: 54vh; left: 4vw; width: 42vw; }
+  .caption .hf-heading { font-size: var(--hf-display-md); margin: var(--hf-space-xs) 0 var(--hf-space-sm); }
+  .caption .body { margin: 0; max-width: 62ch; }
+  .accent { color: var(--hf-accent); }
+
+  .metric { display: flex; align-items: baseline; gap: var(--hf-space-sm); margin: var(--hf-space-md) 0 0; }
+  .metric .counter {
+    font-size: var(--hf-display-lg);
+    font-weight: var(--hf-weight-black);
+    line-height: var(--hf-leading-display);
+    letter-spacing: var(--hf-tracking-display);
+    color: var(--hf-ed-ink-strong);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .params { display: flex; flex-wrap: wrap; gap: var(--hf-space-xs); margin: var(--hf-space-md) 0 0; padding: 0; list-style: none; }
+  .params .hf-tag { text-transform: none; letter-spacing: var(--hf-tracking-body); font-size: var(--hf-text-sm); color: var(--hf-ed-ink); }
+
+  .controls {
+    position: absolute;
+    left: 4vw;
+    bottom: 4vh;
+    display: flex;
+    align-items: center;
+    gap: var(--hf-space-md);
+  }
+  .controls[hidden] { display: none; }
+  .btn {
+    font: inherit;
+    font-size: var(--hf-text-sm);
+    letter-spacing: var(--hf-tracking-label);
+    text-transform: uppercase;
+    color: var(--hf-ed-ink);
+    background: none;
+    border: 1px solid var(--hf-rule);
+    border-radius: var(--hf-radius-pill);
+    padding: var(--hf-space-2xs) var(--hf-space-md);
+    cursor: pointer;
+  }
+  .btn:hover:not(:disabled) { border-color: var(--hf-accent); color: var(--hf-accent); }
+  .btn:focus-visible { outline: 1px solid var(--hf-accent); outline-offset: 2px; }
+  .btn:disabled { color: var(--hf-ed-ink-dim); cursor: default; }
+  .indicator { font-size: var(--hf-text-sm); color: var(--hf-ed-ink-strong); font-variant-numeric: tabular-nums; }
+  .ticks { display: flex; gap: var(--hf-space-2xs); margin: 0; padding: 0; list-style: none; }
+  .ticks li { width: var(--hf-space-md); height: 1px; background: var(--hf-rule); }
+  .ticks li.on { background: var(--hf-accent); }
+
+  /* SVG vocabulary */
+  .stage text { font-family: var(--hf-font-mono); }
+  .t { fill: var(--hf-ed-ink); font-size: var(--hf-text-lg); letter-spacing: var(--hf-tracking-body); }
+  .t-strong { fill: var(--hf-ed-ink-strong); }
+  .lbl { fill: var(--hf-ed-ink-dim); font-size: var(--hf-text-xs); letter-spacing: var(--hf-tracking-label); }
+  .acc { fill: var(--hf-accent); }
+  .card { fill: var(--hf-ed-surface-sunken); stroke: var(--hf-rule); }
+  .card-acc { fill: var(--hf-ed-surface-sunken); stroke: var(--hf-accent); }
+  .bar { fill: var(--hf-ed-ink-dim); }
+  .bar-user, .dot, .fill-acc { fill: var(--hf-accent); }
+  .hair { fill: none; stroke: var(--hf-rule); }
+  .hair-strong { fill: none; stroke: var(--hf-ed-ink-dim); }
+  .hair-acc { fill: none; stroke: var(--hf-accent); }
+  .hair-danger { fill: none; stroke: var(--hf-danger); }
+  .ring { fill: var(--hf-ed-surface); stroke: var(--hf-ed-ink-strong); stroke-width: 2; }
+
+  /* Animations: every one runs once and holds its end state. No timers, no loops. */
+  .anim {
+    animation-duration: var(--dur, 600ms);
+    animation-delay: var(--d, 0ms);
+    animation-fill-mode: both;
+    animation-iteration-count: 1;
+    animation-timing-function: cubic-bezier(0.2, 0.7, 0.2, 1);
+  }
+  .a-fade { animation-name: fade; }
+  .a-rise { animation-name: rise; }
+  .a-move { animation-name: move; --dur: 1000ms; }
+  .a-out { animation-name: out; }
+  .a-dim { animation-name: dim; }
+  .a-draw { animation-name: draw; stroke-dasharray: 1; --dur: 800ms; }
+  .a-pop { animation-name: pop; transform-box: fill-box; transform-origin: center; }
+  .a-grow { animation-name: grow; transform-box: fill-box; transform-origin: left center; }
+  .a-collapse { animation-name: collapse; transform-box: fill-box; transform-origin: center; --dur: 900ms; }
+  .a-count { animation-name: count; --dur: 1600ms; }
+
+  @keyframes fade { from { opacity: 0; } }
+  @keyframes rise { from { opacity: 0; transform: translateY(14px); } }
+  @keyframes move { from { transform: translate(var(--dx, 0px), var(--dy, 0px)); } }
+  @keyframes out { to { opacity: 0; } }
+  @keyframes dim { to { opacity: 0.35; } }
+  @keyframes draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+  @keyframes pop { from { opacity: 0; transform: scale(0.4); } }
+  @keyframes grow { from { transform: scaleX(0); } }
+  @keyframes collapse { to { opacity: 0; transform: translate(var(--dx, 0px), var(--dy, 0px)) scale(0.2); } }
+
+  @property --n { syntax: "<integer>"; inherits: false; initial-value: 0; }
+  @keyframes count { from { --n: var(--from); } to { --n: var(--to); } }
+  .counter { --n: var(--to); counter-reset: n var(--n); }
+  .counter::after { content: counter(n); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .anim { animation-duration: 1ms !important; animation-delay: 0ms !important; }
+  }
+</style>
+</head>
+<body>
+<main class="hf-editorial-surface surface">
+  <header class="brand">
+    <img src="design-system/headingfwd-logo-dark.svg" alt="HeadingFWD">
+    <span class="hf-label">Conversation cluster memory</span>
+  </header>
+
+  <svg class="stage" viewBox="0 0 1600 400" preserveAspectRatio="xMidYMid meet" role="img" aria-labelledby="step-title"></svg>
+
+  <section class="caption" aria-live="polite"></section>
+
+  <nav class="controls" aria-label="Stappen">
+    <button class="btn" type="button" data-dir="-1">Vorige</button>
+    <span class="indicator" data-testid="step-indicator"></span>
+    <ol class="ticks" aria-hidden="true"></ol>
+    <button class="btn" type="button" data-dir="1">Volgende</button>
+    <span class="hf-label">← → spatie · H verbergt</span>
+  </nav>
+</main>
+
+<script>
+"use strict";
+
+const NS = "http://www.w3.org/2000/svg";
+const stage = document.querySelector(".stage");
+const caption = document.querySelector(".caption");
+const controls = document.querySelector(".controls");
+const indicator = document.querySelector(".indicator");
+const ticks = document.querySelector(".ticks");
+const [backButton, nextButton] = controls.querySelectorAll(".btn");
+
+/* ---------- small builders ---------- */
+
+function node(parent, tag, attrs = {}, text) {
+  const el = document.createElementNS(NS, tag);
+  for (const [key, value] of Object.entries(attrs)) el.setAttribute(key, value);
+  if (text !== undefined) el.textContent = text;
+  parent.appendChild(el);
+  return el;
+}
+
+function text(parent, x, y, str, cls = "t", attrs = {}) {
+  return node(parent, "text", { x, y, class: cls, ...attrs }, str);
+}
+
+// Give an element a one-shot animation, with a delay in ms and optional custom properties.
+function anim(el, name, delay = 0, vars = {}) {
+  el.classList.add("anim", "a-" + name);
+  el.style.setProperty("--d", delay + "ms");
+  for (const [key, value] of Object.entries(vars)) el.style.setProperty("--" + key, value);
+  return el;
+}
+
+const pad = (i) => String(i).padStart(2, "0");
+
+// A turn drawn small: a card with one user bar and three answer bars, its number below.
+const CHIP_W = 64;
+const CHIP_H = 86;
+const chipX = (i, x0 = 44) => x0 + i * 84;
+
+function chip(parent, i, x, y) {
+  const g = node(parent, "g");
+  node(g, "rect", { x, y, width: CHIP_W, height: CHIP_H, rx: 8, class: "card" });
+  node(g, "rect", { x: x + 12, y: y + 14, width: 40, height: 6, rx: 3, class: "bar-user" });
+  node(g, "rect", { x: x + 12, y: y + 30, width: 34, height: 6, rx: 3, class: "bar" });
+  node(g, "rect", { x: x + 12, y: y + 46, width: 40, height: 6, rx: 3, class: "bar" });
+  node(g, "rect", { x: x + 12, y: y + 62, width: 22, height: 6, rx: 3, class: "bar" });
+  text(g, x + CHIP_W / 2, y + CHIP_H + 22, "B" + pad(i + 1), "lbl", { "text-anchor": "middle" });
+  return g;
+}
+
+function path(parent, d, cls, attrs = {}) {
+  return node(parent, "path", { d, class: cls, pathLength: 1, ...attrs });
+}
+
+/* ---------- the eight scenes ---------- */
+
+const ROW_Y = 170;
+const DOT_Y = ROW_Y + CHIP_H / 2;
+
+function sceneTurns(svg) {
+  const turns = [
+    [["GEBRUIKER", "Plan een reis naar Lissabon in mei"], ["ASSISTENT", "Drie routes; de kust past"]],
+    [
+      ["GEBRUIKER", "Welke vluchten passen in budget?"],
+      ["TOOL CALL", "search_flights(month=5)"],
+      ["TOOLRESULTAAT", "142 rijen · 18 400 tokens"],
+      ["ASSISTENT", "Twee kosten minder dan €400."],
+    ],
+    [
+      ["GEBRUIKER", "Boek die van 9:40."],
+      ["TOOL CALL", 'book(flight="XY123")'],
+      ["TOOLRESULTAAT", "ok · ref K7Q2"],
+      ["ASSISTENT", "Geboekt, ref K7Q2."],
+    ],
+  ];
+  let delay = 0;
+  turns.forEach((messages, t) => {
+    const x = 60 + t * 520;
+    messages.forEach(([role, content], m) => {
+      const y = 95 + m * 50;
+      const g = anim(node(svg, "g"), "rise", delay);
+      node(g, "rect", { x: x + 16, y, width: 408, height: 40, rx: 4, class: "card" });
+      text(g, x + 32, y + 25, role, role === "GEBRUIKER" ? "lbl acc" : "lbl");
+      text(g, x + 150, y + 26, content, "t", { style: "font-size: var(--hf-text-base)" });
+      delay += 160;
+    });
+    const bracket = node(svg, "g");
+    const h = 20 + messages.length * 50;
+    anim(node(bracket, "rect", { x, y: 80, width: 440, height: h, rx: 13, class: "hair-acc", pathLength: 1 }), "draw", delay + 100);
+    anim(text(bracket, x, 66, "BEURT " + (t + 1), "lbl acc"), "fade", delay + 300);
+  });
+}
+
+function windowRow(svg) {
+  for (let i = 0; i < 18; i++) {
+    const outer = node(svg, "g");
+    if (i < 8) anim(outer, "dim", 1300);
+    anim(chip(outer, i, chipX(i), ROW_Y), "pop", i * 45);
+  }
+}
+
+function windowBracket(svg, delay, animate) {
+  const x1 = chipX(8) - 6;
+  const x2 = chipX(17) + CHIP_W + 6;
+  const g = node(svg, "g");
+  const p = path(g, `M${x1} 150 V136 H${x2} V150`, "hair-acc");
+  const l = text(g, x1, 120, "RECENT WINDOW · LETTERLIJK MEE", "lbl acc");
+  const r = text(g, x2, 120, "keep_recent_turns = 10", "t t-strong", { "text-anchor": "end" });
+  if (animate) {
+    anim(p, "draw", delay);
+    anim(l, "fade", delay + 300);
+    anim(r, "fade", delay + 400);
+  }
+}
+
+function sceneWindow(svg) {
+  windowRow(svg);
+  windowBracket(svg, 1000, true);
+  const x2 = chipX(7) + CHIP_W + 6;
+  anim(path(svg, `M38 150 V136 H${x2} V150`, "hair-strong"), "draw", 1500);
+  anim(text(svg, 38, 120, "UIT HET VENSTER · NOG IN HET ARCHIEF", "lbl"), "fade", 1800);
+  const axis = anim(node(svg, "g"), "fade", 600);
+  node(axis, "line", { x1: 40, y1: 320, x2: 1560, y2: 320, class: "hair" });
+  text(axis, 40, 345, "OUDER", "lbl");
+  text(axis, 1560, 345, "NIEUWER", "lbl", { "text-anchor": "end" });
+}
+
+function sceneVectors(svg) {
+  for (let i = 0; i < 18; i++) {
+    const g = chip(node(svg, "g"), i, chipX(i), ROW_Y);
+    if (i < 8) {
+      g.style.opacity = "0.35";
+      anim(g, "out", 200 + i * 90);
+      const dot = node(svg, "g");
+      node(dot, "circle", { cx: chipX(i) + CHIP_W / 2, cy: DOT_Y, r: 8, class: "dot" });
+      text(dot, chipX(i) + CHIP_W / 2, ROW_Y + CHIP_H + 22, "B" + pad(i + 1), "lbl", { "text-anchor": "middle" });
+      anim(dot, "pop", 400 + i * 90);
+    }
+  }
+  windowBracket(svg, 0, false);
+  anim(text(svg, 44, 150, "B01 → [0,12, −0,48, 0,31, …] · ÉÉN VECTOR PER BEURT", "lbl acc"), "fade", 1300);
+  const x2 = chipX(7) + CHIP_W + 6;
+  anim(path(svg, `M38 300 V314 H${x2} V300`, "hair-acc"), "draw", 1700);
+  anim(text(svg, 38, 342, "BATCH VAN 8 · min_batch_turns = 8", "lbl acc"), "fade", 2000);
+  anim(text(svg, chipX(17) + CHIP_W + 6, 342, "CONTROLE ELKE 5 BEURTEN · cluster_every_n_turns = 5", "lbl", { "text-anchor": "end" }), "fade", 2300);
+}
+
+const SCATTER = [
+  [380, 150], [430, 195], [470, 140],
+  [760, 250], [810, 205], [850, 265],
+  [1150, 140], [1210, 185],
+];
+const GROUPS = [
+  { name: "A", members: [0, 1, 2], cx: 427, cy: 162, r: 72 },
+  { name: "B", members: [3, 4, 5], cx: 807, cy: 240, r: 74 },
+  { name: "C", members: [6, 7], cx: 1180, cy: 162, r: 62 },
+];
+
+function sceneCluster(svg) {
+  anim(text(svg, 800, 50, "similarity(i, j) = cos(vᵢ, vⱼ) + bonus / |i − j|", "t t-strong", { "text-anchor": "middle" }), "fade", 0);
+  anim(text(svg, 800, 76, "AVERAGE LINKAGE · GRENS BIJ 1 − similarity_threshold", "lbl", { "text-anchor": "middle" }), "fade", 200);
+
+  const edges = [[0, 1], [1, 2], [0, 2], [3, 4], [4, 5], [6, 7]];
+  edges.forEach(([i, j], k) => {
+    const [x1, y1] = SCATTER[i];
+    const [x2, y2] = SCATTER[j];
+    anim(path(svg, `M${x1} ${y1} L${x2} ${y2}`, i === 4 ? "hair-acc" : "hair-strong"), "draw", 1300 + k * 80);
+  });
+  anim(text(svg, 900, 330, "B05–B06: cos 0,74 + bonus 0,10 = 0,84", "lbl acc", { "text-anchor": "middle" }), "fade", 1900);
+
+  SCATTER.forEach(([x, y], i) => {
+    const g = node(svg, "g");
+    node(g, "circle", { cx: x, cy: y, r: 8, class: "dot" });
+    text(g, x + 14, y + 4, "B" + pad(i + 1), "lbl");
+    const startX = chipX(i) + CHIP_W / 2;
+    anim(g, "move", i * 60, { dx: startX - x + "px", dy: DOT_Y - y + "px" });
+  });
+
+  GROUPS.forEach((group, k) => {
+    anim(node(svg, "circle", { cx: group.cx, cy: group.cy, r: group.r, class: "hair-acc", pathLength: 1 }), "draw", 2000 + k * 200);
+    anim(text(svg, group.cx, group.cy - group.r - 10, "CLUSTER " + group.name, "lbl acc", { "text-anchor": "middle" }), "fade", 2300 + k * 200);
+  });
+}
+
+function clusterBlob(svg, cx, cy, r, dots, label, cls = "hair-strong") {
+  const g = node(svg, "g");
+  node(g, "circle", { cx, cy, r, class: cls });
+  dots.forEach(([dx, dy]) => node(g, "circle", { cx: cx + dx, cy: cy + dy, r: 7, class: "dot" }));
+  node(g, "circle", { cx, cy, r: 5, class: "ring" });
+  if (label) text(g, cx, cy + r + 24, label, "lbl", { "text-anchor": "middle" });
+  return g;
+}
+
+function sceneJoin(svg) {
+  const C1 = [250, 200];
+  const A = [980, 200];
+  clusterBlob(svg, ...C1, 80, [[-45, -25], [-20, 40], [30, -45], [50, 20], [-50, 15]], "C1 · EERDERE RONDE");
+  clusterBlob(svg, 560, 200, 66, [[-30, -20], [25, 25], [20, -30]], "C2 · EERDERE RONDE");
+
+  // Batch cluster A: its hull stays and fades, its turns travel to C1.
+  const aHull = node(svg, "g");
+  node(aHull, "circle", { cx: A[0], cy: A[1], r: 55, class: "hair-acc" });
+  text(aHull, A[0], A[1] + 55 + 24, "BATCHCLUSTER A", "lbl acc", { "text-anchor": "middle" });
+  anim(aHull, "out", 2000);
+  const aTurns = node(svg, "g");
+  [[-25, -15], [20, 22], [28, -28]].forEach(([dx, dy]) => node(aTurns, "circle", { cx: C1[0] + dx, cy: C1[1] + dy, r: 7, class: "dot" }));
+  anim(aTurns, "move", 2100, { dx: A[0] - C1[0] + "px", dy: "0px" });
+
+  clusterBlob(svg, 1200, 200, 55, [[-22, 18], [18, -20], [25, 25]], "BATCHCLUSTER B", "hair-acc");
+  clusterBlob(svg, 1420, 200, 48, [[-15, -15], [18, 15]], "BATCHCLUSTER C", "hair-acc");
+
+  const comparisons = [
+    { d: "M980 200 Q 615 10 250 200", x: 615, y: 96, label: "0,86 ≥ 0,8 → NAAR C1", cls: "lbl acc", line: "hair-acc" },
+    { d: "M1200 200 Q 880 40 560 200", x: 880, y: 112, label: "0,41 MET C2", cls: "lbl", line: "hair-strong" },
+    { d: "M1420 200 Q 835 -40 250 200", x: 1000, y: 62, label: "0,62 MET C1", cls: "lbl", line: "hair-strong" },
+  ];
+  comparisons.forEach((c, k) => {
+    const g = anim(node(svg, "g"), "out", 2000);
+    anim(path(g, c.d, c.line), "draw", 400 + k * 250);
+    anim(text(g, c.x, c.y, c.label, c.cls, { "text-anchor": "middle" }), "fade", 900 + k * 250);
+  });
+
+  anim(text(svg, C1[0], 80, "C1 GROEIT: 5 → 8 BEURTEN", "lbl acc", { "text-anchor": "middle" }), "fade", 3000);
+  anim(text(svg, 1200, 120, "NIEUW CLUSTER C3", "lbl acc", { "text-anchor": "middle" }), "fade", 2600);
+  anim(text(svg, 1420, 130, "NIEUW CLUSTER C4", "lbl acc", { "text-anchor": "middle" }), "fade", 2800);
+}
+
+function sceneSummary(svg) {
+  text(svg, 60, 60, "C1 · 8 BEURTEN", "lbl");
+  text(svg, 1240, 60, "ARCHIEF · ORIGINELEN BLIJVEN", "lbl");
+  const card = { x: 640, y: 90, w: 420, h: 220 };
+  for (let i = 0; i < 8; i++) {
+    const y = 80 + i * 30;
+    const row = node(svg, "g");
+    node(row, "rect", { x: 60, y, width: 300, height: 22, rx: 4, class: "card" });
+    node(row, "rect", { x: 72, y: y + 8, width: 60, height: 6, rx: 3, class: "bar-user" });
+    node(row, "rect", { x: 142, y: y + 8, width: 160, height: 6, rx: 3, class: "bar" });
+    anim(row, "collapse", 400 + i * 70, {
+      dx: card.x + card.w / 2 - 210 + "px",
+      dy: card.y + card.h / 2 - (y + 11) + "px",
+    });
+    const copy = node(svg, "g", { opacity: 0.5 });
+    node(copy, "rect", { x: 1240, y, width: 300, height: 22, rx: 4, class: "card" });
+    node(copy, "rect", { x: 1252, y: y + 8, width: 60, height: 6, rx: 3, class: "bar-user" });
+    node(copy, "rect", { x: 1322, y: y + 8, width: 160, height: 6, rx: 3, class: "bar" });
+    anim(copy, "fade", 600 + i * 70);
+  }
+  anim(node(svg, "rect", { x: card.x, y: card.y, width: card.w, height: card.h, rx: 13, class: "card-acc" }), "pop", 1300);
+  const lines = [
+    ["SAMENVATTING · C1", "lbl acc"],
+    ["Reis naar Lissabon, 12–16 mei.", "t t-strong"],
+    ["Vluchten onder €400; geboekt:", "t t-strong"],
+    ["vlucht XY123 om 9:40, ref K7Q2.", "t t-strong"],
+    ["ONDERWERP reis · PERIODE mei", "lbl"],
+    ["NAMEN Lissabon, XY123, K7Q2", "lbl"],
+  ];
+  lines.forEach(([str, cls], k) => anim(text(svg, card.x + 24, card.y + 40 + k * 30, str, cls), "rise", 1600 + k * 150));
+}
+
+function sceneNewWindow(svg) {
+  anim(text(svg, 44, 60, "WAT HET MODEL ONTVANGT", "lbl"), "fade", 0);
+  const memory = anim(node(svg, "g"), "rise", 100);
+  node(memory, "rect", { x: 44, y: 100, width: 560, height: 236, rx: 13, class: "card-acc" });
+  text(memory, 64, 128, "SYSTEEM · CONVERSATION MEMORY", "lbl acc");
+  const summaries = ["P1 · jan–mrt, periode-samenvatting · 420 tok", "C1 · reis naar Lissabon · 360 tok", "C2 · recepten · 310 tok", "C3 · maandbudget · 280 tok", "C4 · tuinplan · 240 tok"];
+  summaries.forEach((str, k) => {
+    const g = anim(node(svg, "g"), "rise", 500 + k * 150);
+    node(g, "rect", { x: 64, y: 145 + k * 36, width: 520, height: 28, rx: 4, class: "card" });
+    text(g, 80, 164 + k * 36, str, "t", { style: "font-size: var(--hf-text-base)" });
+  });
+  anim(text(svg, 640, 128, "RECENT WINDOW · 10 BEURTEN LETTERLIJK", "lbl acc"), "fade", 1100);
+  for (let i = 0; i < 10; i++) {
+    anim(chip(node(svg, "g"), i + 8, chipX(i, 640), 150), "pop", 1200 + i * 50);
+  }
+}
+
+function sceneRetrieval(svg) {
+  const q = anim(node(svg, "g"), "rise", 0);
+  node(q, "rect", { x: 40, y: 150, width: 300, height: 90, rx: 8, class: "card-acc" });
+  text(q, 56, 176, "GEBRUIKER · NIEUWE VRAAG", "lbl acc");
+  text(q, 56, 202, "Weet je het", "t t-strong");
+  text(q, 56, 224, "boekingsnummer nog?", "t t-strong");
+
+  const lanes = [
+    { y: 90, label: "VECTOR · COSINUS ≥ 0,5", d: "M340 180 C 390 180 390 120 440 120" },
+    { y: 230, label: "WOORDEN · BM25 (FTS5)", d: "M340 210 C 390 210 390 260 440 260" },
+  ];
+  lanes.forEach((lane, k) => {
+    anim(path(svg, lane.d, "hair-acc"), "draw", 400 + k * 150);
+    const g = anim(node(svg, "g"), "fade", 600 + k * 150);
+    node(g, "rect", { x: 440, y: lane.y, width: 270, height: 60, rx: 8, class: "card" });
+    text(g, 460, lane.y + 35, lane.label, "lbl");
+    anim(path(svg, `M710 ${lane.y + 30} L780 ${lane.y + 30}`, "hair-strong"), "draw", 900 + k * 150);
+  });
+
+  const hits = [
+    { name: "C1 · reis naar Lissabon", status: "AL IN VENSTER", cls: "lbl" },
+    { name: "P1 › vluchten maart", status: "620 TOK · ERBIJ", cls: "lbl acc" },
+    { name: "P1 › aanbetaling hotel", status: "540 TOK · ERBIJ", cls: "lbl acc" },
+    { name: "P1 › visumpapieren", status: "480 TOK · TE VEEL", cls: "lbl" },
+  ];
+  hits.forEach((hit, k) => {
+    const y = 70 + k * 56;
+    const g = anim(node(svg, "g"), "rise", 1100 + k * 150);
+    node(g, "rect", { x: 780, y, width: 420, height: 44, rx: 4, class: "card" });
+    text(g, 796, y + 28, k + 1 + "  " + hit.name, "t", { style: "font-size: var(--hf-text-base)" });
+    anim(text(svg, 1186, y + 28, hit.status, hit.cls, { "text-anchor": "end" }), "fade", 1900 + k * 300);
+  });
+
+  const track = { x: 1240, y: 140, w: 320 };
+  const unit = track.w / 1500;
+  anim(text(svg, track.x, 120, "retrieval_token_budget = 1500", "t t-strong"), "fade", 1700);
+  anim(node(svg, "rect", { x: track.x, y: track.y, width: track.w, height: 16, class: "hair" }), "fade", 1700);
+  anim(node(svg, "rect", { x: track.x, y: track.y, width: 620 * unit, height: 16, class: "fill-acc" }), "grow", 2200);
+  anim(node(svg, "rect", { x: track.x + 620 * unit + 2, y: track.y, width: 540 * unit - 2, height: 16, class: "fill-acc" }), "grow", 2500);
+  anim(node(svg, "rect", { x: track.x + 1160 * unit + 2, y: track.y, width: 480 * unit, height: 16, class: "hair-danger" }), "fade", 2800);
+  anim(text(svg, track.x, 186, "1160 + 480 > 1500 · STOP", "lbl"), "fade", 2900);
+
+  const win = anim(node(svg, "g"), "rise", 3200);
+  node(win, "rect", { x: 40, y: 320, width: 480, height: 44, rx: 4, class: "card" });
+  text(win, 56, 347, "MEMORY-BERICHT", "lbl");
+  node(win, "rect", { x: 530, y: 320, width: 280, height: 44, rx: 4, class: "card-acc" });
+  text(win, 546, 347, "HITS · 2 UIT P1", "lbl acc");
+  node(win, "rect", { x: 820, y: 320, width: 740, height: 44, rx: 4, class: "card" });
+  text(win, 836, 347, "RECENT WINDOW · 10 BEURTEN", "lbl");
+}
+
+/* ---------- steps ---------- */
+
+const STEPS = [
+  {
+    title: "Berichten vormen beurten",
+    body: "Een beurt is één gebruikersbericht plus alles tot het volgende: antwoorden, tool calls en toolresultaten. Elke drempel telt beurten, dus een beurt wordt nooit gesplitst.",
+    params: [],
+    scene: sceneTurns,
+  },
+  {
+    title: "Het recente venster",
+    body: "De laatste tien beurten gaan letterlijk naar het model. Oudere beurten verlaten het venster, maar uit het archief verdwijnt nooit iets.",
+    params: ["keep_recent_turns = 10"],
+    scene: sceneWindow,
+  },
+  {
+    title: "Beurten die het venster verlaten worden vectoren",
+    body: "Een beurt krijgt één keer een embedding, als hij het venster verlaat: de vraag, het antwoord en per toolresultaat een korte kop. Acht wachtende beurten vormen een batch.",
+    params: ["min_batch_turns = 8", "cluster_every_n_turns = 5"],
+    scene: sceneVectors,
+  },
+  {
+    title: "De batch wordt geclusterd",
+    body: "Beurten die op elkaar lijken komen samen. Buren in de tijd krijgen een bonus, zodat een korte vraag bij zijn lange antwoord blijft. Dezelfde input geeft dezelfde clusters.",
+    params: ["similarity_threshold = 0.8"],
+    scene: sceneCluster,
+  },
+  {
+    title: "Een batchcluster voegt zich bij een bestaand cluster",
+    body: "Elk batchcluster vergelijkt zijn centroid met de bestaande clusters. Vanaf 0,8 voegt het zich bij het meest gelijkende, bij gelijke stand het oudste. Anders wordt het een nieuw cluster.",
+    params: ["similarity_threshold = 0.8"],
+    scene: sceneJoin,
+  },
+  {
+    title: "Het cluster wordt samengevat",
+    body: "Een chatmodel schrijft één samenvatting per nieuw of gegroeid cluster. Namen, getallen, datums en besluiten blijven letterlijk. In het venster vervangt de samenvatting de beurten; het archief bewaart de originelen.",
+    params: ['resummarize_strategy = "incremental"'],
+    metric: { from: 4820, to: 360, label: "tokens voor C1 in het venster", delay: 1300 },
+    scene: sceneSummary,
+  },
+  {
+    title: "Het venster: memory plus recente beurten",
+    body: "Het model krijgt nu één memory-bericht met de samenvattingen op volgorde van tijd. De oudste zijn al samengevoegd tot een periode-samenvatting. Daarna volgen de tien laatste beurten, letterlijk.",
+    params: ["keep_recent_turns = 10"],
+    scene: sceneNewWindow,
+  },
+  {
+    title: "Een vraag start hybride retrieval",
+    body: "Met het laatste gebruikersbericht wordt gezocht op vector en op woorden, over alle niveaus van samenvattingen in het archief. Hits die al in het venster staan vallen af; de rest komt erbij tot het tokenbudget op is.",
+    params: ["retrieval_token_budget = 1500", "retrieval_k = 3", "retrieval_min_similarity = 0.5"],
+    metric: { from: 0, to: 1160, label: "tokens erbij, budget 1500", delay: 2200 },
+    scene: sceneRetrieval,
+  },
+];
+
+let current = 0;
+
+function el(tag, cls, str) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (str !== undefined) e.textContent = str;
+  return e;
+}
+
+function renderCaption(step, index) {
+  caption.replaceChildren();
+  const kicker = anim(el("p", "hf-label"), "rise", 0);
+  kicker.append(el("span", "accent", "Stap " + pad(index + 1)), " · " + pad(STEPS.length) + " stappen");
+  const title = anim(el("h1", "hf-heading", step.title), "rise", 80);
+  title.id = "step-title";
+  const body = anim(el("p", "body", step.body), "rise", 160);
+  caption.append(kicker, title, body);
+  if (step.metric) {
+    const metric = anim(el("p", "metric"), "rise", 240);
+    const counter = anim(el("span", "counter"), "count", step.metric.delay, {
+      from: step.metric.from,
+      to: step.metric.to,
+    });
+    metric.append(counter, el("span", "hf-label", step.metric.label));
+    caption.append(metric);
+  }
+  if (step.params.length) {
+    const list = anim(el("ul", "params"), "rise", 320);
+    for (const p of step.params) list.append(el("li", "hf-tag", p));
+    caption.append(list);
+  }
+}
+
+function show(index) {
+  current = Math.max(0, Math.min(STEPS.length - 1, index));
+  const step = STEPS[current];
+  stage.replaceChildren();
+  step.scene(stage);
+  renderCaption(step, current);
+  indicator.textContent = pad(current + 1) + " / " + pad(STEPS.length);
+  [...ticks.children].forEach((li, i) => li.classList.toggle("on", i === current));
+  backButton.disabled = current === 0;
+  nextButton.disabled = current === STEPS.length - 1;
+}
+
+for (let i = 0; i < STEPS.length; i++) ticks.append(el("li"));
+
+controls.addEventListener("click", (event) => {
+  const button = event.target.closest(".btn");
+  if (button) show(current + Number(button.dataset.dir));
+});
+
+const KEYS = {
+  ArrowRight: 1, ArrowDown: 1, PageDown: 1, " ": 1,
+  ArrowLeft: -1, ArrowUp: -1, PageUp: -1,
+};
+
+document.addEventListener("keydown", (event) => {
+  if (event.altKey || event.ctrlKey || event.metaKey) return;
+  if (event.key === "h" || event.key === "H") {
+    controls.hidden = !controls.hidden;
+    return;
+  }
+  const dir = KEYS[event.key];
+  if (dir === undefined) return;
+  // Also stops Space and arrows from activating a focused button a second time.
+  event.preventDefault();
+  if (!event.repeat) show(current + dir);
+});
+
+show(0);
+</script>
+</body>
+</html>
