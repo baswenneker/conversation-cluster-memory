@@ -7,6 +7,22 @@
 <link rel="stylesheet" href="design-system/tokens.css">
 <link rel="stylesheet" href="design-system/bundle.css">
 <style>
+  /* Type: Instrument Sans for headings and text, Geist Mono for labels (both SIL OFL, self-hosted). */
+  @font-face { font-family: "Instrument Sans"; src: url("fonts/instrument-sans-latin-wght-normal.woff2") format("woff2"); font-weight: 400 700; font-display: block; }
+  @font-face { font-family: "Geist Mono"; src: url("fonts/geist-mono-latin-wght-normal.woff2") format("woff2"); font-weight: 100 900; font-display: block; }
+  :root {
+    --ccm-sans: "Instrument Sans", "Helvetica Neue", Arial, sans-serif;
+    --ccm-mono: "Geist Mono", ui-monospace, Menlo, Consolas, monospace;
+  }
+  body { font-family: var(--ccm-sans); font-size: var(--hf-text-lg); letter-spacing: -0.005em; }
+  .hf-heading { font-family: var(--ccm-sans); font-weight: 500; letter-spacing: -0.03em; line-height: 1.1; }
+  .hf-label, .hf-tag, .indicator { font-family: var(--ccm-mono); }
+  .hf-label { letter-spacing: 0.08em; }
+  .caption .hf-label .accent::before {
+    content: ""; display: inline-block; width: 6px; height: 6px; margin-right: 10px;
+    background: var(--hf-accent); vertical-align: 0.1em;
+  }
+
   /* Layout: the diagram fills the top half, text and controls the bottom-left quarter.
      The bottom-right quarter stays empty for the camera overlay. */
   html, body { height: 100%; overflow: hidden; }
@@ -26,16 +42,17 @@
   .stage { position: absolute; top: 11vh; left: 4vw; width: 92vw; height: 38vh; }
 
   .caption { position: absolute; top: 54vh; left: 4vw; width: 42vw; }
-  .caption .hf-heading { font-size: var(--hf-display-md); margin: var(--hf-space-xs) 0 var(--hf-space-sm); }
+  .caption .hf-heading { font-size: clamp(28px, 2.9vw, 44px); margin: var(--hf-space-xs) 0 var(--hf-space-sm); }
   .caption .body { margin: 0; max-width: 62ch; }
   .accent { color: var(--hf-accent); }
 
   .metric { display: flex; align-items: baseline; gap: var(--hf-space-sm); margin: var(--hf-space-md) 0 0; }
   .metric .counter {
     font-size: var(--hf-display-lg);
-    font-weight: var(--hf-weight-black);
+    font-family: var(--ccm-sans);
+    font-weight: 500;
     line-height: var(--hf-leading-display);
-    letter-spacing: var(--hf-tracking-display);
+    letter-spacing: -0.03em;
     color: var(--hf-ed-ink-strong);
     font-variant-numeric: tabular-nums;
   }
@@ -54,9 +71,9 @@
   .controls[hidden] { display: none; }
   .btn {
     font: inherit;
-    font-size: var(--hf-text-sm);
-    letter-spacing: var(--hf-tracking-label);
-    text-transform: uppercase;
+    font-size: var(--hf-text-base);
+    font-weight: 500;
+    letter-spacing: 0;
     color: var(--hf-ed-ink);
     background: none;
     border: 1px solid var(--hf-rule);
@@ -73,10 +90,11 @@
   .ticks li.on { background: var(--hf-accent); }
 
   /* SVG vocabulary */
-  .stage text { font-family: var(--hf-font-mono); }
-  .t { fill: var(--hf-ed-ink); font-size: var(--hf-text-lg); letter-spacing: var(--hf-tracking-body); }
+  .stage text { font-family: var(--ccm-sans); }
+  .stage .lbl { font-family: var(--ccm-mono); }
+  .t { fill: var(--hf-ed-ink); font-size: var(--hf-text-xl); letter-spacing: -0.01em; }
   .t-strong { fill: var(--hf-ed-ink-strong); }
-  .lbl { fill: var(--hf-ed-ink-dim); font-size: var(--hf-text-xs); letter-spacing: var(--hf-tracking-label); }
+  .lbl { fill: var(--hf-ed-ink-dim); font-size: var(--hf-text-xs); letter-spacing: 0.08em; }
   .acc { fill: var(--hf-accent); }
   .card { fill: var(--hf-ed-surface-sunken); stroke: var(--hf-rule); }
   .card-acc { fill: var(--hf-ed-surface-sunken); stroke: var(--hf-accent); }
