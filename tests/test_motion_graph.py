@@ -142,11 +142,12 @@ def test_opens_from_disk_without_network_and_with_the_self_hosted_font(
     page: Page, requests: list[str]
 ) -> None:
     assert [url for url in requests if not url.startswith("file:")] == []
-    assert page.evaluate("document.fonts.check('16px \"JetBrains Mono\"')")
-    loaded = page.evaluate(
-        "[...document.fonts].filter(f => f.family.includes('JetBrains Mono')).map(f => f.status)"
-    )
-    assert "loaded" in loaded
+    for family in ("Instrument Sans", "Geist Mono"):
+        assert page.evaluate(f"document.fonts.check('16px \"{family}\"')")
+        loaded = page.evaluate(
+            f"[...document.fonts].filter(f => f.family.includes('{family}')).map(f => f.status)"
+        )
+        assert "loaded" in loaded, family
 
 
 def test_parameters_shown_match_the_library_defaults(page: Page) -> None:
