@@ -8,7 +8,7 @@ import pytest
 from playwright.sync_api import Page, sync_playwright
 
 PAGE = Path(__file__).resolve().parents[1] / "docs" / "motion-graph" / "index.html"
-STEPS = 8
+STEPS = 6
 WIDTH, HEIGHT = 1920, 1080
 
 
@@ -19,19 +19,6 @@ for (const name of ["setTimeout", "setInterval", "requestAnimationFrame"]) {
   const original = window[name];
   window[name] = (...args) => { window.__timers++; return original.apply(window, args); };
 }
-"""
-
-# Every visible leaf element: text, controls and SVG shapes, with its box on screen.
-VISIBLE_LEAVES = """
-() => [...document.body.querySelectorAll("*")]
-  .filter((el) => el.childElementCount === 0 && !["SCRIPT", "STYLE"].includes(el.tagName))
-  .filter((el) => el.checkVisibility({ opacityProperty: true, visibilityProperty: true }))
-  .map((el) => {
-    const r = el.getBoundingClientRect();
-    return { tag: el.tagName, text: el.textContent.slice(0, 40), left: r.left, top: r.top,
-             right: r.right, bottom: r.bottom, width: r.width, height: r.height };
-  })
-  .filter((r) => r.width > 0 || r.height > 0)
 """
 
 
@@ -68,44 +55,32 @@ def current_step(page: Page) -> str:
 
 
 def test_next_back_arrows_and_space_navigate(page: Page) -> None:
-    assert current_step(page) == "01 / 08"
+    assert current_step(page) == f"01 / {STEPS:02d}"
     page.get_by_role("button", name="Next").click()
-    assert current_step(page) == "02 / 08"
+    assert current_step(page) == f"02 / {STEPS:02d}"
     page.keyboard.press("ArrowRight")
-    assert current_step(page) == "03 / 08"
+    assert current_step(page) == f"03 / {STEPS:02d}"
     page.keyboard.press("Space")
-    assert current_step(page) == "04 / 08"
+    assert current_step(page) == f"04 / {STEPS:02d}"
     page.keyboard.press("ArrowLeft")
-    assert current_step(page) == "03 / 08"
+    assert current_step(page) == f"03 / {STEPS:02d}"
     page.get_by_role("button", name="Back").click()
-    assert current_step(page) == "02 / 08"
+    assert current_step(page) == f"02 / {STEPS:02d}"
 
 
 def test_each_step_plays_once_and_nothing_advances_without_input(page: Page) -> None:
     for step in range(1, STEPS + 1):
-        assert current_step(page) == f"{step:02d} / 08"
+        assert current_step(page) == f"{step:02d} / {STEPS:02d}"
         wait_for_animations(page)
         page.wait_for_timeout(1500)
         running = page.evaluate(
             "document.getAnimations().filter(a => a.playState === 'running').length"
         )
         assert running == 0
-        assert current_step(page) == f"{step:02d} / 08"
+        assert current_step(page) == f"{step:02d} / {STEPS:02d}"
         page.keyboard.press("ArrowRight")
-    assert current_step(page) == "08 / 08"
+    assert current_step(page) == f"{STEPS:02d} / {STEPS:02d}"
     assert page.evaluate("window.__timers") == 0
-
-
-def test_bottom_right_quarter_stays_empty_in_every_step(page: Page) -> None:
-    for step in range(1, STEPS + 1):
-        wait_for_animations(page)
-        inside = [
-            leaf
-            for leaf in page.evaluate(VISIBLE_LEAVES)
-            if leaf["right"] > WIDTH / 2 and leaf["bottom"] > HEIGHT / 2
-        ]
-        assert inside == [], f"step {step}: {inside}"
-        page.keyboard.press("ArrowRight")
 
 
 def test_h_hides_and_shows_the_controls(page: Page) -> None:
@@ -114,37 +89,22 @@ def test_h_hides_and_shows_the_controls(page: Page) -> None:
     page.keyboard.press("h")
     assert controls.is_hidden()
     page.keyboard.press("ArrowRight")
-    assert current_step(page) == "02 / 08"
+    assert current_step(page) == f"02 / {STEPS:02d}"
     page.keyboard.press("h")
     assert controls.is_visible()
 
 
-def test_opens_from_disk_without_network_and_with_the_self_hosted_font(
+def test_opens_from_disk_without_network_and_with_the_self_hosted_fonts(
     page: Page, requests: list[str]
 ) -> None:
     assert [url for url in requests if not url.startswith("file:")] == []
-    assert page.evaluate("document.fonts.check('16px \"JetBrains Mono\"')")
-    loaded = page.evaluate(
-        "[...document.fonts].filter(f => f.family.includes('JetBrains Mono')).map(f => f.status)"
-    )
-    assert "loaded" in loaded
-
-
-def test_parameters_shown_match_the_library_defaults(page: Page) -> None:
-    shown = ""
-    for _ in range(STEPS):
-        shown += (
-            page.locator("body").inner_text() + (page.locator("svg").text_content() or "") + "\n"
+    for family in ("Space Grotesk", "JetBrains Mono"):
+        assert page.evaluate('(f) => document.fonts.check(`16px "${f}"`)', family)
+        loaded = page.evaluate(
+            "(f) => [...document.fonts].filter(x => x.family.includes(f)).map(x => x.status)",
+            family,
         )
-        page.keyboard.press("ArrowRight")
-    for parameter in (
-        "keep_recent_turns = 10",
-        "min_batch_turns = 8",
-        "similarity_threshold = 0.8",
-        "cluster_every_n_turns = 5",
-        "retrieval_token_budget = 1500",
-    ):
-        assert parameter in shown
+        assert "loaded" in loaded
 
 
 def test_colours_come_from_the_design_tokens() -> None:

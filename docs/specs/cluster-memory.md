@@ -97,7 +97,7 @@ The summary is structured output: text plus anchors (subject, period, names). Th
 
 **Repository.** Python 3.13, uv only (no pip requirements file), src layout. Everything in the repository is English. A demo entry point grows with each ticket and shows the store, the clusters, a summary and retrieval on a built-in conversation, in memory.
 
-**Motion graph.** A standalone HTML/CSS/JavaScript page, no build step, opened locally and full-screen, styled with a terminal-style design system (dark only, JetBrains Mono only, one cyan accent, hairlines, tight display tracking, wide label tracking). Eight steps, one per click: messages form turns; the window of recent turns; turns leaving the window become vectors; a batch is clustered with cosine and a proximity bonus; a batch cluster joins an existing cluster; the cluster is summarized and a token counter drops; the window becomes the memory message plus recent turns; a question triggers hybrid retrieval and hits enter the window within budget. Each step's animation plays once and stops; Next, Back, arrow keys and space navigate; no autoplay, no timers, no loops. The bottom-right quarter stays empty for a camera overlay; the `H` key hides the controls.
+**Motion graph.** A standalone HTML/CSS/JavaScript page, no build step, opened locally and full-screen, made for viewers who are not technical and for a 16:9 video watched on a phone: few elements, large type, a dark navy ground, one lime accent, self-hosted Space Grotesk and JetBrains Mono, every colour from `theme.css`. Six steps, one per click: messages form turns; every turn fills the window; each question costs more; a full window cannot answer; a common problem for AI assistants, with one way to solve it; new turns stay, old ones go to an archive by topic and a question brings back only the part it needs. Each step's animation plays once and stops; Next, Back, arrow keys and space navigate; no autoplay, no timers, no loops. The `H` key hides the controls.
 
 **Documentation.** An English plan document in the repository holds the complete plan with all decisions above and, as one whole, the framework-agnostic specification (below). The README covers installation with uv, the default embedding model and why, usage, a placeholder for the explainer video (a recording by the owner, never fabricated), and the marked evaluation-results block with a placeholder until the first run.
 
@@ -111,7 +111,7 @@ Good tests exercise external behaviour through `ConversationClusterMemory` (and,
 - Retrieval: vector and keyword hits, minimum similarity, budget and `k`, deduplication, summary versus originals as payload, no cross-conversation hits, the tool.
 - Lifetime: level-2 summaries above `max_summary_tokens`, reindex, the three deletes.
 - Evaluation: the token metric and the README updater are unit-tested; the DeepEval run itself runs locally, by hand.
-- Motion graph: a headless browser test that steps through all eight steps, checks that nothing advances without input, and that the camera area stays empty.
+- Motion graph: a headless browser test that steps through all six steps, checks that nothing advances without input, that the page loads without network with its self-hosted fonts, and that no colour is set outside the theme.
 
 ## Out of Scope
 

@@ -204,20 +204,18 @@ Python 3.13, uv only (no pip requirements file), src layout. Everything in the r
 
 ### Motion graph
 
-A standalone HTML/CSS/JavaScript page at `docs/motion-graph/index.html`: no build step, opened locally and full-screen. It uses a terminal-style design system: dark only, JetBrains Mono only, one cyan accent, hairlines, tight display tracking and wide label tracking.
+A standalone HTML/CSS/JavaScript page at `docs/motion-graph/index.html`: no build step, opened locally and full-screen. It is made for viewers who are not technical and for a 16:9 video watched on a phone, so it has few elements and large type. Its look: a dark navy ground, one lime accent, Space Grotesk for text and JetBrains Mono for labels, both self-hosted. Every colour comes from `docs/motion-graph/theme.css`.
 
-Eight steps, one per click:
+Six steps, one per click:
 
-1. Messages form turns.
-2. The window of recent turns.
-3. Turns leaving the window become vectors.
-4. A batch is clustered with cosine similarity and a proximity bonus.
-5. A batch cluster joins an existing cluster.
-6. The cluster is summarized and a token counter drops.
-7. The window becomes the memory message plus recent turns.
-8. A question triggers hybrid retrieval, and hits enter the window within budget.
+1. Messages form turns: what the user asks, what the AI looks up, and its answer, in plain words.
+2. Every turn fills the window: ten turns as rows, the fill meter rises.
+3. Each question costs more, because every question sends the whole conversation again.
+4. A full window cannot answer: one large lookup hits the limit.
+5. A common problem for AI assistants, with many ways to solve it; one way in three steps.
+6. New turns stay, old ones go to an archive by topic, and a question brings back only the part it needs.
 
-Each step's animation plays once and stops. Next, Back, the arrow keys and space navigate; there is no autoplay, no timers and no loops. The bottom-right quarter stays empty for a camera overlay, and the `H` key hides the controls.
+Each step's animation plays once and stops. Next, Back, the arrow keys and space navigate; there is no autoplay, no timers and no loops. The `H` key hides the controls.
 
 ### Documentation
 
@@ -233,7 +231,7 @@ Good tests exercise external behaviour through `ConversationClusterMemory` (and,
 - **Retrieval**: vector and keyword hits, minimum similarity, budget and `k`, deduplication, summary versus originals as payload, no cross-conversation hits, the tool.
 - **Lifetime**: level-2 summaries above `max_summary_tokens`, reindex, the three deletes.
 - **Evaluation**: the token metric and the README updater are unit-tested; the DeepEval run itself is not part of the gate.
-- **Motion graph**: a headless browser test steps through all eight steps, checks that nothing advances without input, and checks that the camera area stays empty.
+- **Motion graph**: a headless browser test steps through all six steps, checks that nothing advances without input, that the page loads without network with its self-hosted fonts, and that no colour is set outside the theme.
 
 ## Out of scope
 

@@ -1,0 +1,50 @@
+/* Theme for the motion graph: a dark navy ground, one lime accent, periwinkle for lookups and
+   red for the full window. Space Grotesk for text, JetBrains Mono for labels (its @font-face
+   lives in design-system/tokens.css). Every colour the page uses comes from here. */
+
+@font-face {
+  font-family: "Space Grotesk";
+  src: url("fonts/space-grotesk-latin-wght-normal.woff2") format("woff2");
+  font-weight: 300 700;
+  font-style: normal;
+  font-display: block;
+}
+
+:root {
+  --mg-font: "Space Grotesk", system-ui, sans-serif;
+  --mg-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  /* Ground and panels */
+  --mg-bg: #0e1020;
+  --mg-panel: #12152a;
+  --mg-panel-raised: #1a1e38;
+  --mg-archive: #090b16;
+  --mg-line: #2a2e48;
+  --mg-line-strong: #3a3f62;
+
+  /* Text */
+  --mg-ink: #edebe3;
+  --mg-body: #c9cbd9;
+  --mg-soft: #a3a7c4;
+  --mg-muted: #8d90ab;
+  --mg-faint: #6f7392;
+
+  /* Accent: the user, the meter, what is brought back */
+  --mg-accent: #c8f560;
+  --mg-accent-soft: #2a3315;
+
+  /* Lookups the AI does */
+  --mg-lookup: #9aa8ff;
+  --mg-lookup-text: #c9cfff;
+
+  /* Bars and the full window */
+  --mg-bar: #2e3458;
+  --mg-bar-strong: #4a5180;
+  --mg-track: #1b1f38;
+  --mg-danger: #ff5c5c;
+  --mg-danger-text: #ff8a8a;
+  --mg-danger-ground: #1a1124;
+  --mg-danger-line: #3d1f33;
+}
+
+html { color-scheme: dark; }
